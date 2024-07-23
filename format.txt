@@ -1,3 +1,12 @@
+Format Wiki (v6 not released yet)
+https://www.mytwiddler.com/doc/doku.php?id=twiddler_config_format
+
+
+v5 Format
+https://www.mytwiddler.com/doc/static/twiddler3_config_format_v5_rev3.pdf
+
+
+v6 Format reversing
 
 00-03: 0
 0004: 6 // version
