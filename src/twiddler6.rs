@@ -56,7 +56,7 @@ pub struct Chord {
 }
 
 pub(crate) fn parse() -> std::io::Result<Config> {
-    let mut file = File::open("test.cfg")?;
+    let mut file = File::open("./configs/test_v6.cfg")?;
 
     file.seek(SeekFrom::Start(4))?;
 
