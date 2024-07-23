@@ -1,0 +1,105 @@
+
+00-03: 0
+0004: 6 // version
+0005: left mouse
+    F0L: 1
+    F0R: 5
+0006: number of chords
+0030: Chords
+    8 bytes per chord
+
+    00: keys
+    01: keys
+    02: keys
+
+
+    03: 
+    04:
+    05:
+    06:
+    07:
+
+_ 0M a
+00 00 01 00 02 00 04 00
+
+_ 0M A
+00 00 01 00 02 20 04 00
+
+_ 0M A
+00 00 02 00 02 20 04 00
+
+0 0M A
+00 00 0A 00 02 20 04 00
+
+0 0M a
+00 00 0A 00 02 00 04 00
+
+_ 0M b
+02 00 05 00
+
+
+Z 
+20 1D
+
+0 
+00 27
+
+9
+00 27
+
+1
+1E
+
+
+ALL a
+FF FF 0F 00 02 00 04 00
+
+_ OM left mouse
+00 00 02 00 03 01 00 00
+
+_ 0M middle mouse
+00 00 02 00 03 04 00 00
+
+
+
+More mouse 
+00 00 02 00 07 00 00 00
+
+@0x70
+03 01 00 00 
+05 05 00 00 
+03 00 00 00 
+00 00 00 00
+
+
+
+command
+
+01 System
+02 keyboard
+03 mouse
+05 delay
+07 list of commands
+
+keyboard
+hid keyfields
+https://gist.github.com/MightyPork/6da26e382a7ad91b5496ee55fdc73db2
+
+
+Mouse (bitfield)
+01 left
+02 right
+04 middle
+
+delay
+duration in ms / 10
+10k ms
+E8 03 00
+
+little endian
+
+List of commands
+07 00 00 00
+07 00 10 00
+
+

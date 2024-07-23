@@ -1,0 +1,13 @@
+[package]
+name = "twiddler_cfg"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+binrw = "0.14.0"
+byteorder = "1.5.0"
+hex = "0.4.3"
+itertools = "0.13.0"
+keycode = "0.4.0"
