@@ -1,9 +1,6 @@
-use std::{
-    fs::File,
-    io::{Read, Seek, SeekFrom, Write},
-};
+use std::io::{Read, Seek};
 
-use binrw::{binrw, BinRead, PosValue};
+use binrw::{BinRead, PosValue};
 use modular_bitfield::prelude::*;
 
 use crate::buttons::ButtonState;
@@ -135,7 +132,7 @@ pub(crate) fn parse<R: Read + Seek>(reader: &mut R) -> Result<Config, Box<dyn st
         Ok(config) => {
             assert!(config.version == 5, "Not a version 5 config file");
             Ok(config)
-        } 
+        }
         Err(e) => Err(Box::new(e)),
     }
 }

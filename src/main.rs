@@ -1,4 +1,3 @@
-use buttons::ButtonState;
 use twiddler6::HidCommand;
 
 mod buttons;
@@ -7,7 +6,6 @@ mod twiddler6;
 
 use clap::Parser;
 use clio::*;
-use std::io::Write;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]

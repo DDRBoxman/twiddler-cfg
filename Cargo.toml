@@ -8,10 +8,7 @@ description = "Convert Twiddler v5 configs to Twiddler v6 configs"
 
 [dependencies]
 binrw = "0.14.0"
-byteorder = "1.5.0"
 clap = { version = "4.5.10", features = ["derive"] }
 clio = { version = "0.3.5", features = ["clap-parse"] }
 hex = "0.4.3"
-itertools = "0.13.0"
-keycode = "0.4.0"
 modular-bitfield = "0.11.2"

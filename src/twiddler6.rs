@@ -1,9 +1,6 @@
-use std::{
-    fs::File,
-    io::{Read, Seek, SeekFrom, Write},
-};
+use std::io::{Read, Seek, SeekFrom, Write};
 
-use binrw::{binrw, BinRead, BinResult, BinWrite, Endian, PosValue};
+use binrw::{binrw, BinRead, BinResult, BinWrite, Endian};
 use modular_bitfield::{bitfield, prelude::B4};
 use std::convert::From;
 
@@ -223,7 +220,7 @@ pub(crate) fn parse<R: Read + Seek>(reader: &mut R) -> Result<Config, Box<dyn st
     }
 }
 
-pub(crate) fn write <W: Write + Seek>(mut config: Config, writer: &mut W) -> std::io::Result<()> {
+pub(crate) fn write<W: Write + Seek>(mut config: Config, writer: &mut W) -> std::io::Result<()> {
     // update number of chords
     config.number_of_chords = config.chords.len() as u16;
 
@@ -269,4 +266,3 @@ pub(crate) fn write <W: Write + Seek>(mut config: Config, writer: &mut W) -> std
 
     Ok(())
 }
-
