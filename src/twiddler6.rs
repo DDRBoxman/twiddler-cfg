@@ -1,14 +1,15 @@
 use std::{
     fs::File,
-    io::{Seek, SeekFrom, Write},
+    io::{Read, Seek, SeekFrom, Write},
 };
 
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use keycode::{KeyMap, KeyMapping, KeyMappingCode, KeyMappingId};
+use binrw::{binrw, BinRead, BinResult, BinWrite, Endian, PosValue};
 
-#[derive(Debug)]
-#[repr(u8)]
+#[derive(Debug, PartialEq)]
+#[binrw]
+#[brw(big, repr = u8)]
 pub enum CommandType {
+    None = 0,
     System = 1,
     Keyboard = 2,
     Mouse = 3,
@@ -16,123 +17,109 @@ pub enum CommandType {
     ListOfCommands = 7,
 }
 
-impl CommandType {
-    fn from_u8(value: u8) -> CommandType {
-        match value {
-            1 => CommandType::System,
-            2 => CommandType::Keyboard,
-            3 => CommandType::Mouse,
-            5 => CommandType::Delay,
-            7 => CommandType::ListOfCommands,
-            _ => panic!("Unknown value: {}", value),
+#[binrw]
+#[brw(little)]
+#[derive(Debug)]
+pub struct Config {
+    #[brw(pad_before = 0x4)]
+    version: u8,
+    left_mouse: u8,
+    number_of_chords: u8,
+    #[brw(seek_before = SeekFrom::Start(0x28))]
+    #[br(count = number_of_chords)]
+    chords: Vec<Chord>,
+
+    #[br(count = chords.iter().filter(|c| c.command.command_type == CommandType::ListOfCommands).count())]
+    command_lists: Vec<CommandList>,
+}
+
+#[derive(Debug)]
+#[binrw]
+#[brw(little)]
+pub struct Chord {
+    keys: u32,
+    command: Command,
+}
+
+#[derive(Debug)]
+#[binrw]
+#[brw(little)]
+pub struct Command {
+    command_type: CommandType,
+    #[brw(pad_after = 1)]
+    data: u16,
+}
+
+#[derive(Default, Debug)]
+pub struct CommandList(pub Vec<Command>);
+
+impl BinRead for CommandList {
+    type Args<'a> = ();
+
+    fn read_options<R: Read + Seek>(
+        reader: &mut R,
+        endian: Endian,
+        (): Self::Args<'_>,
+    ) -> BinResult<Self> {
+        let mut values = vec![];
+
+        loop {
+            let command = <Command>::read_options(reader, endian, ())?;
+            if command.command_type == CommandType::None {
+                return Ok(Self(values));
+            }
+            values.push(command);
         }
     }
 }
 
-#[derive(Debug)]
-pub struct Config {
-    header: TwiddlerHeader,
-    chords: Vec<Chord>,
-}
+impl BinWrite for CommandList {
+    type Args<'a> = ();
 
-#[derive(Debug)]
-pub struct TwiddlerHeader {
-    version: u8,
-    left_mouse: u8,
-    number_of_chords: u8,
-}
+    fn write_options<W: Write + Seek>(
+        &self,
+        writer: &mut W,
+        endian: Endian,
+        args: Self::Args<'_>,
+    ) -> BinResult<()> {
+        self.0.write_options(writer, endian, args)?;
+        0u32.write_options(writer, endian, args)?;
 
-#[derive(Debug)]
-pub struct Command {
-    command_type: CommandType,
-    data: u16,
-}
-
-#[derive(Debug)]
-pub struct Chord {
-    keys: u32,
-    command: Command,
-    command_list: Option<Vec<Command>>,
-}
-
-pub(crate) fn parse() -> std::io::Result<Config> {
-    let mut file = File::open("./configs/test_v6.cfg")?;
-
-    file.seek(SeekFrom::Start(4))?;
-
-    let version = file.read_u8()?;
-    let left_mouse = file.read_u8()?;
-    let number_of_chords = file.read_u8()?;
-    file.read_u8()?;
-
-    let header = TwiddlerHeader {
-        version,
-        left_mouse,
-        number_of_chords,
-    };
-
-    file.seek(SeekFrom::Start(0x28))?;
-
-    let mut chords: Vec<Chord> = Vec::new();
-
-    for _ in 0..number_of_chords {
-        let keys = file.read_u32::<LittleEndian>()?;
-        let command_type = file.read_u8()?;
-        let data = file.read_u16::<LittleEndian>()?;
-        file.read_u8()?;
-
-        print!(
-            "Keys: {:X}, Command Type: {:X}, Data: {:X}\n",
-            keys, command_type, data
-        );
-
-        let command = Command {
-            command_type: CommandType::from_u8(command_type),
-            data,
-        };
-
-        let chord = Chord {
-            keys,
-            command,
-            command_list: None,
-        };
-
-        chords.push(chord);
+        Ok(())
     }
+}
 
-    Ok(Config { header, chords })
+pub(crate) fn parse() -> Result<Config, Box<dyn std::error::Error>> {
+    let mut file = File::open("./configs/default_v6.cfg")?;
+
+    let res = Config::read(&mut &file);
+    match res {
+        Ok(config) => {
+            println!("{:?}", config);
+            return Ok(config);
+        }
+        Err(e) => Err(Box::new(e)),
+    }
 }
 
 pub(crate) fn write(config: Config) -> std::io::Result<()> {
     let mut file = File::create("test_out.cfg").unwrap();
 
-    file.write_u32::<LittleEndian>(0x00000000)?;
-    file.write_u8(config.header.version)?;
-    file.write_u8(config.header.left_mouse)?;
-    file.write_u8(config.header.number_of_chords)?;
-    file.write_u8(0)?;
-
-    // TODO: Figure out more config format details
-    let data =
-        hex::decode("58020000000000007F640003000102030405060708090A0C0D0F111416181A1D").unwrap();
-
-    file.write(&data)?;
-
-    let chord_list_end = 0x28 + (config.header.number_of_chords as u64 * 8);
-
-    let command_list_offset = 0;
-
-    for chord in config.chords {
-        file.write_u32::<LittleEndian>(chord.keys)?;
-        file.write_u8(chord.command.command_type as u8)?;
-        file.write_u16::<LittleEndian>(chord.command.data)?;
-        file.write_u8(0)?;
+    let res = Config::write(&config, &mut file);
+    match res {
+        Ok(_) => {
+            println!("Wrote config");
+        }
+        Err(e) => {
+            println!("{:?}", e);
+        }
     }
 
-    //let a = KeyMap::from(KeyMappingId::UsA);
-    //KeyMap::from(KeyMappingCode::Win(22));
-
-    // assert_eq!(a.usb, 0x0004);
+    // TODO: Figure out more config format details
+    file.seek(SeekFrom::Start(0x8));
+    let data =
+        hex::decode("58020000000000007F640003000102030405060708090A0C0D0F111416181A1D").unwrap();
+    file.write(&data)?;
 
     Ok(())
 }

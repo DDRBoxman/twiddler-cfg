@@ -7,7 +7,17 @@ fn main() -> std::io::Result<()> {
     //println!("{:?}", config);
 
     //twiddler6::write(config)?;
-    twiddler5::parse()?;
+    //twiddler5::parse()?;
+
+    let res = twiddler6::parse();
+    match res {
+        Ok(config) => {
+            twiddler6::write(config)?;
+        }
+        Err(e) => {
+            println!("{:?}", e);
+        }
+    }
 
     Ok(())
 }
