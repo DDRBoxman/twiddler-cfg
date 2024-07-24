@@ -12,21 +12,30 @@ fn main() -> std::io::Result<()> {
                 println!("{:?}", c);
             });
 
-            let config6 = twiddler6::Config::new();
+            let mut config6 = twiddler6::Config::new();
             config.chords.iter().for_each(|c| {
                 let buttonState = c.button_state();
 
-                let res = match c.mapping {
+                let command = match c.mapping {
                     twiddler5::ChordMapping::KeyMapping(modifier, key_code) => twiddler6::Command {
                         command_type: twiddler6::CommandType::Keyboard,
                         data: twiddler6::CommandData::Keyboard(modifier, key_code),
                     },
-                    twiddler5::ChordMapping::StringMapping(_, _) => twiddler6::Command {
-                        command_type: twiddler6::CommandType::ListOfCommands,
-                        data: twiddler6::CommandData::ListOfCommands(0),
-                    },
+                    twiddler5::ChordMapping::StringMapping(_, _) => {
+                        twiddler6::Command {
+                            command_type: twiddler6::CommandType::ListOfCommands,
+                            data: twiddler6::CommandData::ListOfCommands(0),
+                        }
+                    }
                 };
+
+                config6.chords.push(twiddler6::Chord {
+                    buttons: buttonState.into(),
+                    command
+                });
             });
+
+            twiddler6::write(config6)?;
         }
         Err(e) => {
             println!("{:?}", e);

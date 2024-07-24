@@ -4,6 +4,11 @@ use std::{
 };
 
 use binrw::{binrw, BinRead, BinResult, BinWrite, Endian, PosValue};
+use modular_bitfield::{bitfield, prelude::B4};
+use std::convert::From;
+
+
+use crate::buttons::ButtonState;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[binrw]
@@ -49,8 +54,9 @@ impl Config {
 #[binrw]
 #[brw(little)]
 pub struct Chord {
-    keys: u32,
-    command: Command,
+    #[brw(pad_after = 1)]
+    pub buttons: ButtonData,
+    pub command: Command,
 }
 
 #[derive(Debug)]
@@ -170,4 +176,58 @@ pub(crate) fn write(mut config: Config) -> std::io::Result<()> {
     file.write(&data)?;
 
     Ok(())
+}
+
+
+#[bitfield]
+#[derive(BinRead, BinWrite, Debug, Copy, Clone)]
+#[br(map = Self::from_bytes)]
+pub struct ButtonData {
+    f0l: bool,
+    f0m: bool,
+    f0r: bool,
+    t0: bool,
+    unknown: B4,
+    t3: bool,
+    f3r: bool,
+    f3m: bool,
+    f3l: bool,
+    t4: bool,
+    f4r: bool,
+    f4m: bool,
+    f4l: bool,
+    t1: bool,
+    f1r: bool,
+    f1m: bool,
+    f1l: bool,
+    t2: bool,
+    f2r: bool,
+    f2m: bool,
+    f2l: bool,
+}
+
+impl From<ButtonState> for ButtonData {
+    fn from(state: ButtonState) -> Self {
+        ButtonData::new()
+        .with_f0l(state.f0l)
+        .with_f0m(state.f0m)
+        .with_f0r(state.f0r)
+        .with_t0(false)
+        .with_t3(state.t3)
+        .with_f3r(state.f3r)
+        .with_f3m(state.f3m)
+        .with_f3l(state.f3l)
+        .with_t4(state.t4)
+        .with_f4r(state.f4r)
+        .with_f4m(state.f4m)
+        .with_f4l(state.f4l)
+        .with_t1(state.t1)
+        .with_f1r(state.f1r)
+        .with_f1m(state.f1m)
+        .with_f1l(state.f1l)
+        .with_t2(state.t2)
+        .with_f2r(state.f2r)
+        .with_f2m(state.f2m)
+        .with_f2l(state.f2l)
+    }
 }
