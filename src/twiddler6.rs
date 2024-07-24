@@ -128,68 +128,6 @@ impl BinWrite for CommandList {
     }
 }
 
-pub(crate) fn parse() -> Result<Config, Box<dyn std::error::Error>> {
-    let file = File::open("./test_out.cfg")?;
-
-    let res = Config::read(&mut &file);
-    match res {
-        Ok(config) => {
-            //println!("{:?}", config);
-            return Ok(config);
-        }
-        Err(e) => Err(Box::new(e)),
-    }
-}
-
-pub(crate) fn write(mut config: Config) -> std::io::Result<()> {
-    // update number of chords
-    config.number_of_chords = config.chords.len() as u16;
-
-    // update offsets in config
-    let command_lists_command_count = config
-        .chords
-        .iter()
-        .filter(|c| c.command.command_type == CommandType::ListOfCommands)
-        .count();
-    assert!(
-        command_lists_command_count == config.command_lists.len(),
-        "Commands with CommandType::ListOfCommands count mismatch"
-    );
-
-    let mut offset = 0;
-
-    let mut j = 0;
-    for i in 0..config.chords.len() {
-        if config.chords[i].command.command_type == CommandType::ListOfCommands {
-            let size = config.command_lists[j].0.len() * 4;
-            config.chords[i].command.data = CommandData::ListOfCommands(0, offset);
-            offset += size as u16;
-            offset += 4; // 0u32
-            j += 1;
-        }
-    }
-
-    let mut file = File::create("test_out.cfg").unwrap();
-
-    let res = Config::write(&config, &mut file);
-    match res {
-        Ok(_) => {
-            println!("Wrote config");
-        }
-        Err(e) => {
-            println!("{:?}", e);
-        }
-    }
-
-    // TODO: Figure out more config format details
-    file.seek(SeekFrom::Start(0x8));
-    let data =
-        hex::decode("58020000000000007F640003000102030405060708090A0C0D0F111416181A1D").unwrap();
-    file.write(&data)?;
-
-    Ok(())
-}
-
 #[bitfield]
 #[derive(BinRead, BinWrite, Debug, Copy, Clone)]
 #[br(map = Self::from_bytes)]
@@ -273,3 +211,62 @@ impl Into<ButtonState> for ButtonData {
         }
     }
 }
+
+pub(crate) fn parse<R: Read + Seek>(reader: &mut R) -> Result<Config, Box<dyn std::error::Error>> {
+    let res = Config::read(reader);
+    match res {
+        Ok(config) => {
+            //println!("{:?}", config);
+            return Ok(config);
+        }
+        Err(e) => Err(Box::new(e)),
+    }
+}
+
+pub(crate) fn write <W: Write + Seek>(mut config: Config, writer: &mut W) -> std::io::Result<()> {
+    // update number of chords
+    config.number_of_chords = config.chords.len() as u16;
+
+    // update offsets in config
+    let command_lists_command_count = config
+        .chords
+        .iter()
+        .filter(|c| c.command.command_type == CommandType::ListOfCommands)
+        .count();
+    assert!(
+        command_lists_command_count == config.command_lists.len(),
+        "Commands with CommandType::ListOfCommands count mismatch"
+    );
+
+    let mut offset = 0;
+
+    let mut j = 0;
+    for i in 0..config.chords.len() {
+        if config.chords[i].command.command_type == CommandType::ListOfCommands {
+            let size = config.command_lists[j].0.len() * 4;
+            config.chords[i].command.data = CommandData::ListOfCommands(0, offset);
+            offset += size as u16;
+            offset += 4; // 0u32
+            j += 1;
+        }
+    }
+
+    let res = Config::write(&config, writer);
+    match res {
+        Ok(_) => {
+            println!("Wrote config");
+        }
+        Err(e) => {
+            println!("{:?}", e);
+        }
+    }
+
+    // TODO: Figure out more config format details
+    writer.seek(SeekFrom::Start(0x8));
+    let data =
+        hex::decode("58020000000000007F640003000102030405060708090A0C0D0F111416181A1D").unwrap();
+    writer.write(&data)?;
+
+    Ok(())
+}
+

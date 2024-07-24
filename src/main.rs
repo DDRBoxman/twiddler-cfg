@@ -5,23 +5,24 @@ mod buttons;
 mod twiddler5;
 mod twiddler6;
 
-fn main() -> std::io::Result<()> {
-    let res = twiddler6::parse();
-    match res {
-        Ok(config) => {
-            for c in &config.chords {
-                let buttons: ButtonState = c.buttons.into();
-                if buttons.f1l == true && buttons.f2m == true {
-                    println!("{:?}", c);
-                }
-            }
-        }
-        Err(e) => {
-            println!("{:?}", e);
-        }
-    }
+use clap::Parser;
+use clio::*;
+use std::io::Write;
 
-    let res = twiddler5::parse();
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+struct Opt {
+    #[clap(value_parser)]
+    input: Input,
+
+    #[clap(value_parser)]
+    output: Output,
+}
+
+fn main() -> std::io::Result<()> {
+    let mut opt = Opt::parse();
+
+    let res = twiddler5::parse(&mut opt.input);
     match res {
         Ok(config) => {
             let mut config6 = twiddler6::Config::new();
@@ -83,22 +84,12 @@ fn main() -> std::io::Result<()> {
                 });
             });
 
-            twiddler6::write(config6)?;
+            twiddler6::write(config6, &mut opt.output)?;
         }
         Err(e) => {
             println!("{:?}", e);
         }
     }
-
-    /*let res = twiddler6::parse();
-    match res {
-        Ok(config) => {
-            twiddler6::write(config)?;
-        }
-        Err(e) => {
-            println!("{:?}", e);
-        }
-    }*/
 
     Ok(())
 }

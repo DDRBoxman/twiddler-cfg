@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    io::{Seek, SeekFrom, Write},
+    io::{Read, Seek, SeekFrom, Write},
 };
 
 use binrw::{binrw, BinRead, PosValue};
@@ -129,12 +129,13 @@ impl Into<ButtonState> for ButtonData {
     }
 }
 
-pub(crate) fn parse() -> Result<Config, Box<dyn std::error::Error>> {
-    let file = File::open("./configs/backspice2_v5.cfg")?;
-
-    let res = Config::read(&mut &file);
+pub(crate) fn parse<R: Read + Seek>(reader: &mut R) -> Result<Config, Box<dyn std::error::Error>> {
+    let res = Config::read(reader);
     match res {
-        Ok(config) => Ok(config),
+        Ok(config) => {
+            assert!(config.version == 5, "Not a version 5 config file");
+            Ok(config)
+        } 
         Err(e) => Err(Box::new(e)),
     }
 }
