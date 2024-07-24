@@ -1,4 +1,3 @@
-use buttons::ButtonState;
 
 mod buttons;
 mod twiddler5;
@@ -14,7 +13,7 @@ fn main() -> std::io::Result<()> {
 
             let mut config6 = twiddler6::Config::new();
             config.chords.iter().for_each(|c| {
-                let buttonState = c.button_state();
+                let button_state = c.button_state();
 
                 let command = match c.mapping {
                     twiddler5::ChordMapping::KeyMapping(modifier, key_code) => twiddler6::Command {
@@ -22,15 +21,30 @@ fn main() -> std::io::Result<()> {
                         data: twiddler6::CommandData::Keyboard(modifier, key_code),
                     },
                     twiddler5::ChordMapping::StringMapping(_, _) => {
-                        twiddler6::Command {
+                        let command = twiddler6::Command {
                             command_type: twiddler6::CommandType::ListOfCommands,
                             data: twiddler6::CommandData::ListOfCommands(0),
-                        }
+                        };
+
+                        let command_list = vec![
+                            twiddler6::Command {
+                                command_type: twiddler6::CommandType::Keyboard,
+                                data: twiddler6::CommandData::Keyboard(0, 0x0C),
+                            },
+                            twiddler6::Command {
+                                command_type: twiddler6::CommandType::Keyboard,
+                                data: twiddler6::CommandData::Keyboard(0, 0x0D),
+                            },
+                        ];
+
+                        config6.command_lists.push(twiddler6::CommandList(command_list));
+
+                        command
                     }
                 };
 
                 config6.chords.push(twiddler6::Chord {
-                    buttons: buttonState.into(),
+                    buttons: button_state.into(),
                     command
                 });
             });
