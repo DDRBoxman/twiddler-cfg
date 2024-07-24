@@ -4,8 +4,9 @@ use std::{
 };
 
 use binrw::{binrw, BinRead, PosValue};
-use itertools::Itertools;
-use keycode::KeyMapping;
+use modular_bitfield::prelude::*;
+
+use crate::buttons::ButtonState;
 
 #[derive(BinRead)]
 #[br(little)]
@@ -40,7 +41,7 @@ struct Config {
 #[br(little)]
 #[derive(Debug)]
 struct Chord {
-    chord: u16,
+    chord: ButtonData,
     #[br(restore_position)]
     modifier: u8,
     #[br(args { modifier })]
@@ -71,8 +72,56 @@ struct StringContents {
     keys: Vec<ChordMapping>,
 }
 
+#[bitfield]
+#[derive(BinRead, Debug)]
+#[br(map = Self::from_bytes)]
+pub struct ButtonData {
+    num: bool,
+    a: bool,
+    e: bool,
+    sp: bool,
+    alt: bool,
+    b: bool,
+    f: bool,
+    del: bool,
+    ctrl: bool,
+    c: bool,
+    g: bool,
+    bs: bool,
+    shift: bool,
+    d: bool,
+    h: bool,
+    ent: bool,
+}
+
+impl Into<ButtonState> for ButtonData {
+    fn into(self) -> ButtonState {
+        ButtonState {
+            T1: self.num(),
+            T2: self.alt(),
+            T3: self.ctrl(),
+            T4: self.shift(),
+            F0L: false,
+            F0M: false,
+            F0R: false,
+            F1R: self.a(),
+            F1M: self.e(),
+            F1L: self.sp(),
+            F2R: self.b(),
+            F2M: self.f(),
+            F2L: self.del(),
+            F3R: self.c(),
+            F3M: self.g(),
+            F3L: self.bs(),
+            F4R: self.d(),
+            F4M: self.h(),
+            F4L: self.ent(),
+        }
+    }
+}
+
 pub(crate) fn parse() -> std::io::Result<()> {
-    let mut file = File::open("./configs/backspice2_v5.cfg")?;
+    let file = File::open("./configs/backspice2_v5.cfg")?;
 
     let res = Config::read(&mut &file);
     match res {
