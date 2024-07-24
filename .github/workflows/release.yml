@@ -17,8 +17,6 @@ jobs:
             archive: tar.gz tar.xz tar.zst
           - target: x86_64-apple-darwin
             archive: zip
-          - target: arm64-apple-darwin
-            archive: zip
     steps:
       - uses: actions/checkout@master
       - name: Compile and release
