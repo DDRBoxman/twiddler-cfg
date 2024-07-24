@@ -71,11 +71,11 @@ impl ChordMapping {
 
 #[derive(Debug, BinRead)]
 #[br(little)]
-struct StringContents {
+pub struct StringContents {
     size: u16,
 
     #[br(count = size / 2 - 1, args { inner: ChordMappingBinReadArgs { modifier: 0 } })]
-    keys: Vec<ChordMapping>,
+    pub keys: Vec<ChordMapping>,
 }
 
 #[bitfield]

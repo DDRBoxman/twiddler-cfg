@@ -7,7 +7,6 @@ use binrw::{binrw, BinRead, BinResult, BinWrite, Endian, PosValue};
 use modular_bitfield::{bitfield, prelude::B4};
 use std::convert::From;
 
-
 use crate::buttons::ButtonState;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -64,7 +63,6 @@ pub struct Chord {
 #[brw(little)]
 pub struct Command {
     pub command_type: CommandType,
-    #[brw(pad_after = 1)]
     #[br(args { command_type: &command_type })]
     pub data: CommandData,
 }
@@ -75,9 +73,20 @@ pub struct Command {
 #[br(import { command_type: &CommandType })]
 pub(crate) enum CommandData {
     #[br(assert(*command_type == CommandType::ListOfCommands))]
-    ListOfCommands(u16),
+    ListOfCommands(u8, u16),
     #[br(assert(*command_type == CommandType::Keyboard))]
-    Keyboard(u8, u8),
+    Keyboard(HidCommand, u8),
+    #[br(assert(*command_type == CommandType::System))]
+    System(u8, u8, u8),
+    #[br(assert(*command_type == CommandType::None))]
+    None(u8, u8, u8),
+}
+
+#[derive(Debug)]
+#[binrw]
+pub struct HidCommand {
+    pub modifier: u8,
+    pub key_code: u8,
 }
 
 #[derive(Default, Debug)]
@@ -120,7 +129,7 @@ impl BinWrite for CommandList {
 }
 
 pub(crate) fn parse() -> Result<Config, Box<dyn std::error::Error>> {
-    let mut file = File::open("./configs/default_v6.cfg")?;
+    let file = File::open("./test_out.cfg")?;
 
     let res = Config::read(&mut &file);
     match res {
@@ -136,8 +145,6 @@ pub(crate) fn write(mut config: Config) -> std::io::Result<()> {
     // update number of chords
     config.number_of_chords = config.chords.len() as u16;
 
-    println!("{:?}", config.chords.len());
-
     // update offsets in config
     let command_lists_command_count = config
         .chords
@@ -149,14 +156,17 @@ pub(crate) fn write(mut config: Config) -> std::io::Result<()> {
         "Commands with CommandType::ListOfCommands count mismatch"
     );
 
-    let chord_section_size = config.chords.len() * 8;
+    let mut offset = 0;
 
-    let mut offset = 0x28 + chord_section_size;
-
-    for i in 0..command_lists_command_count {
-        config.chords[i].command.data = CommandData::ListOfCommands(offset as u16);
-        offset += config.command_lists[i].0.len() * 4;
-        offset += 4;
+    let mut j = 0;
+    for i in 0..config.chords.len() {
+        if config.chords[i].command.command_type == CommandType::ListOfCommands {
+            let size = config.command_lists[j].0.len() * 4;
+            config.chords[i].command.data = CommandData::ListOfCommands(0, offset);
+            offset += size as u16;
+            offset += 4; // 0u32
+            j += 1;
+        }
     }
 
     let mut file = File::create("test_out.cfg").unwrap();
@@ -179,7 +189,6 @@ pub(crate) fn write(mut config: Config) -> std::io::Result<()> {
 
     Ok(())
 }
-
 
 #[bitfield]
 #[derive(BinRead, BinWrite, Debug, Copy, Clone)]
@@ -216,25 +225,51 @@ pub struct ButtonData {
 impl From<ButtonState> for ButtonData {
     fn from(state: ButtonState) -> Self {
         ButtonData::new()
-        .with_f0l(state.f0l)
-        .with_f0m(state.f0m)
-        .with_f0r(state.f0r)
-        .with_t0(false)
-        .with_t3(state.t3)
-        .with_f3r(state.f3r)
-        .with_f3m(state.f3m)
-        .with_f3l(state.f3l)
-        .with_t4(state.t4)
-        .with_f4r(state.f4r)
-        .with_f4m(state.f4m)
-        .with_f4l(state.f4l)
-        .with_t1(state.t1)
-        .with_f1r(state.f1r)
-        .with_f1m(state.f1m)
-        .with_f1l(state.f1l)
-        .with_t2(state.t2)
-        .with_f2r(state.f2r)
-        .with_f2m(state.f2m)
-        .with_f2l(state.f2l)
+            .with_f0l(state.f0l)
+            .with_f0m(state.f0m)
+            .with_f0r(state.f0r)
+            .with_t0(false)
+            .with_t3(state.t3)
+            .with_f3r(state.f3r)
+            .with_f3m(state.f3m)
+            .with_f3l(state.f3l)
+            .with_t4(state.t4)
+            .with_f4r(state.f4r)
+            .with_f4m(state.f4m)
+            .with_f4l(state.f4l)
+            .with_t1(state.t1)
+            .with_f1r(state.f1r)
+            .with_f1m(state.f1m)
+            .with_f1l(state.f1l)
+            .with_t2(state.t2)
+            .with_f2r(state.f2r)
+            .with_f2m(state.f2m)
+            .with_f2l(state.f2l)
+    }
+}
+
+impl Into<ButtonState> for ButtonData {
+    fn into(self) -> ButtonState {
+        ButtonState {
+            t1: self.t1(),
+            t2: self.t2(),
+            t3: self.t3(),
+            t4: self.t4(),
+            f0l: self.f0l(),
+            f0m: self.f0m(),
+            f0r: self.f0r(),
+            f1r: self.f1r(),
+            f1m: self.f1m(),
+            f1l: self.f1l(),
+            f2r: self.f2r(),
+            f2m: self.f2m(),
+            f2l: self.f2l(),
+            f3r: self.f3r(),
+            f3m: self.f3m(),
+            f3l: self.f3l(),
+            f4r: self.f4r(),
+            f4m: self.f4m(),
+            f4l: self.f4l(),
+        }
     }
 }
