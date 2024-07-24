@@ -11,47 +11,53 @@ use crate::buttons::ButtonState;
 #[derive(BinRead)]
 #[br(little)]
 #[derive(Debug)]
-struct Config {
+pub struct Config {
     version: u8,
     options_a: u8,
     number_of_chords: u16,
     sleep_timeout: u16,
-    mouse_left_click: u16,
-    mouse_middle_click: u16,
-    mouse_right_click: u16,
+    mouse_left_click: u16,   // todo: these can also be actions and probably
+    mouse_middle_click: u16, // invoke string actions, make sure to
+    mouse_right_click: u16,  // add these to the count if so
     mouse_accel_factor: u8,
     key_repeat_delay: u8,
     options_b: u8,
     options_c: u8,
 
     #[br(count = number_of_chords)]
-    chords: Vec<Chord>,
+    pub chords: Vec<Chord>,
 
     #[br(calc = chords.iter().filter(|c| c.mapping.is_string()).count())]
     number_of_strings: usize,
 
     #[br(count = number_of_strings)]
-    string_locations: Vec<u32>,
+    pub string_locations: Vec<u32>,
 
     #[br(count = number_of_strings)]
-    string_contents: Vec<PosValue<StringContents>>,
+    pub string_contents: Vec<PosValue<StringContents>>,
 }
 
 #[derive(BinRead)]
 #[br(little)]
 #[derive(Debug)]
-struct Chord {
+pub struct Chord {
     chord: ButtonData,
     #[br(restore_position)]
     modifier: u8,
     #[br(args { modifier })]
-    mapping: ChordMapping,
+    pub mapping: ChordMapping,
+}
+
+impl Chord {
+    pub fn button_state(&self) -> ButtonState {
+        self.chord.into()
+    }
 }
 
 #[derive(Eq, PartialEq, Hash, Debug, BinRead)]
 #[br(little)]
 #[br(import { modifier: u8 })]
-enum ChordMapping {
+pub(crate) enum ChordMapping {
     #[br(assert(modifier == 0xFF))]
     StringMapping(u8, u8),
     KeyMapping(u8, u8),
@@ -73,7 +79,7 @@ struct StringContents {
 }
 
 #[bitfield]
-#[derive(BinRead, Debug)]
+#[derive(BinRead, Debug, Copy, Clone)]
 #[br(map = Self::from_bytes)]
 pub struct ButtonData {
     num: bool,
@@ -120,18 +126,12 @@ impl Into<ButtonState> for ButtonData {
     }
 }
 
-pub(crate) fn parse() -> std::io::Result<()> {
+pub(crate) fn parse() -> Result<Config, Box<dyn std::error::Error>> {
     let file = File::open("./configs/backspice2_v5.cfg")?;
 
     let res = Config::read(&mut &file);
     match res {
-        Ok(config) => {
-            println!("{:?}", config);
-        }
-        Err(e) => {
-            println!("{:?}", e);
-        }
+        Ok(config) => Ok(config),
+        Err(e) => Err(Box::new(e)),
     }
-
-    Ok(())
 }

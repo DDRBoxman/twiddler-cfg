@@ -5,7 +5,7 @@ use std::{
 
 use binrw::{binrw, BinRead, BinResult, BinWrite, Endian, PosValue};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 #[binrw]
 #[brw(big, repr = u8)]
 pub enum CommandType {
@@ -24,13 +24,25 @@ pub struct Config {
     #[brw(pad_before = 0x4)]
     version: u8,
     left_mouse: u8,
-    number_of_chords: u8,
+    pub number_of_chords: u8,
     #[brw(seek_before = SeekFrom::Start(0x28))]
     #[br(count = number_of_chords)]
-    chords: Vec<Chord>,
+    pub chords: Vec<Chord>,
 
     #[br(count = chords.iter().filter(|c| c.command.command_type == CommandType::ListOfCommands).count())]
-    command_lists: Vec<CommandList>,
+    pub command_lists: Vec<CommandList>,
+}
+
+impl Config {
+    pub fn new() -> Self {
+        Self {
+            version: 6,
+            left_mouse: 1,
+            number_of_chords: 0,
+            chords: vec![],
+            command_lists: vec![],
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -45,9 +57,21 @@ pub struct Chord {
 #[binrw]
 #[brw(little)]
 pub struct Command {
-    command_type: CommandType,
+    pub command_type: CommandType,
     #[brw(pad_after = 1)]
-    data: u16,
+    #[br(args { command_type: &command_type })]
+    pub data: CommandData,
+}
+
+#[derive(Debug)]
+#[binrw]
+#[br(little)]
+#[br(import { command_type: &CommandType })]
+pub(crate) enum CommandData {
+    #[br(assert(*command_type == CommandType::ListOfCommands))]
+    ListOfCommands(u16),
+    #[br(assert(*command_type == CommandType::Keyboard))]
+    Keyboard(u8, u8),
 }
 
 #[derive(Default, Debug)]
@@ -103,6 +127,9 @@ pub(crate) fn parse() -> Result<Config, Box<dyn std::error::Error>> {
 }
 
 pub(crate) fn write(mut config: Config) -> std::io::Result<()> {
+    // update number of chords
+    config.number_of_chords = config.chords.len() as u8;
+
     // update offsets in config
     let command_lists_command_count = config
         .chords
@@ -119,7 +146,7 @@ pub(crate) fn write(mut config: Config) -> std::io::Result<()> {
     let mut offset = 0x28 + chord_section_size;
 
     for i in 0..command_lists_command_count {
-        config.chords[i].command.data = offset as u16;
+        config.chords[i].command.data = CommandData::ListOfCommands(offset as u16);
         offset += config.command_lists[i].0.len() * 4;
         offset += 4;
     }
