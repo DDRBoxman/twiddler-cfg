@@ -102,7 +102,28 @@ pub(crate) fn parse() -> Result<Config, Box<dyn std::error::Error>> {
     }
 }
 
-pub(crate) fn write(config: Config) -> std::io::Result<()> {
+pub(crate) fn write(mut config: Config) -> std::io::Result<()> {
+    // update offsets in config
+    let command_lists_command_count = config
+        .chords
+        .iter()
+        .filter(|c| c.command.command_type == CommandType::ListOfCommands)
+        .count();
+    assert!(
+        command_lists_command_count == config.command_lists.len(),
+        "Commands with CommandType::ListOfCommands count mismatch"
+    );
+
+    let chord_section_size = config.chords.len() * 8;
+
+    let mut offset = 0x28 + chord_section_size;
+
+    for i in 0..command_lists_command_count {
+        config.chords[i].command.data = offset as u16;
+        offset += config.command_lists[i].0.len() * 4;
+        offset += 4;
+    }
+
     let mut file = File::create("test_out.cfg").unwrap();
 
     let res = Config::write(&config, &mut file);
