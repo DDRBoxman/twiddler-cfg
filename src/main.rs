@@ -21,7 +21,7 @@ fn main() -> std::io::Result<()> {
                         data: twiddler6::CommandData::Keyboard(modifier, key_code),
                     },
                     twiddler5::ChordMapping::StringMapping(_, _) => {
-                        let command = twiddler6::Command {
+                       /*  let command = twiddler6::Command {
                             command_type: twiddler6::CommandType::ListOfCommands,
                             data: twiddler6::CommandData::ListOfCommands(0),
                         };
@@ -38,8 +38,12 @@ fn main() -> std::io::Result<()> {
                         ];
 
                         config6.command_lists.push(twiddler6::CommandList(command_list));
+                        */
 
-                        command
+                        twiddler6::Command {
+                            command_type: twiddler6::CommandType::Keyboard,
+                            data: twiddler6::CommandData::Keyboard(0, 0x0C),
+                        }
                     }
                 };
 

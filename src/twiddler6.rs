@@ -29,7 +29,7 @@ pub struct Config {
     #[brw(pad_before = 0x4)]
     version: u8,
     left_mouse: u8,
-    pub number_of_chords: u8,
+    pub number_of_chords: u16,
     #[brw(seek_before = SeekFrom::Start(0x28))]
     #[br(count = number_of_chords)]
     pub chords: Vec<Chord>,
@@ -125,7 +125,7 @@ pub(crate) fn parse() -> Result<Config, Box<dyn std::error::Error>> {
     let res = Config::read(&mut &file);
     match res {
         Ok(config) => {
-            println!("{:?}", config);
+            //println!("{:?}", config);
             return Ok(config);
         }
         Err(e) => Err(Box::new(e)),
@@ -134,7 +134,9 @@ pub(crate) fn parse() -> Result<Config, Box<dyn std::error::Error>> {
 
 pub(crate) fn write(mut config: Config) -> std::io::Result<()> {
     // update number of chords
-    config.number_of_chords = config.chords.len() as u8;
+    config.number_of_chords = config.chords.len() as u16;
+
+    println!("{:?}", config.chords.len());
 
     // update offsets in config
     let command_lists_command_count = config
@@ -183,27 +185,32 @@ pub(crate) fn write(mut config: Config) -> std::io::Result<()> {
 #[derive(BinRead, BinWrite, Debug, Copy, Clone)]
 #[br(map = Self::from_bytes)]
 pub struct ButtonData {
-    f0l: bool,
-    f0m: bool,
-    f0r: bool,
-    t0: bool,
-    unknown: B4,
-    t3: bool,
-    f3r: bool,
-    f3m: bool,
-    f3l: bool,
-    t4: bool,
-    f4r: bool,
-    f4m: bool,
-    f4l: bool,
     t1: bool,
     f1r: bool,
     f1m: bool,
     f1l: bool,
+
     t2: bool,
     f2r: bool,
     f2m: bool,
     f2l: bool,
+
+    t3: bool,
+    f3r: bool,
+    f3m: bool,
+    f3l: bool,
+
+    t4: bool,
+    f4r: bool,
+    f4m: bool,
+    f4l: bool,
+
+    t0: bool,
+    f0r: bool,
+    f0m: bool,
+    f0l: bool,
+
+    unknown: B4,
 }
 
 impl From<ButtonState> for ButtonData {

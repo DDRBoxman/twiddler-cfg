@@ -86,14 +86,17 @@ pub struct ButtonData {
     a: bool,
     e: bool,
     sp: bool,
+
     alt: bool,
     b: bool,
     f: bool,
     del: bool,
+
     ctrl: bool,
     c: bool,
     g: bool,
     bs: bool,
+
     shift: bool,
     d: bool,
     h: bool,
