@@ -13,4 +13,16 @@ Currently converts twiddler v5 configs into v6. Possibly more down the road.
 - [x] Chord mappings
 - [x] v5 global config (mouse accel, mouse clicks, etc.)
 - [ ] v6 global config (mouse accel, mouse clicks, etc.)
+- [ ] Ensure output has default system chords
+- [ ] Read CSV
+- [ ] Write CSV
+- [ ] Read dido text format
+- [ ] Write dido format
 
+
+### Development stuff
+```
+cargo run -- ./configs/backspice2_v5.cfg ./test.cfg
+```
+
+cargo test -- --nocapture

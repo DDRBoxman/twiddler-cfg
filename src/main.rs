@@ -1,6 +1,12 @@
+use std::io::{Read, Seek, SeekFrom, Write};
+
+use binrw::BinReaderExt;
+use byteorder::ReadBytesExt;
 use twiddler6::HidCommand;
 
 mod buttons;
+mod csv;
+mod hid;
 mod twiddler5;
 mod twiddler6;
 
@@ -20,7 +26,49 @@ struct Opt {
 fn main() -> std::io::Result<()> {
     let mut opt = Opt::parse();
 
-    let res = twiddler5::parse(&mut opt.input);
+    //opt.input.seek(SeekFrom::Start(0));
+    if opt.input.read_u8().unwrap() == 0x05 {
+        println!("Reading input as Twiddler 5 config");
+        opt.input.seek(SeekFrom::Start(0));
+        twiddler5_to_twiddler6(&mut opt.input, &mut opt.output);
+        return Ok(());
+    }
+
+    opt.input.seek(SeekFrom::Start(5));
+    if opt.input.read_u8().unwrap() == 0x06 {
+        print!("Twiddler 6 config detected");
+        return Ok(());
+    }
+
+    println!("Reading input as csv config");
+    opt.input.seek(SeekFrom::Start(0));
+    csv_to_twiddler6(&mut opt.input, &mut opt.output);
+
+    Ok(())
+}
+
+fn csv_to_twiddler6<R: Read + Seek, W: Write + Seek>(
+    reader: &mut R,
+    writer: &mut W,
+) -> std::io::Result<()> {
+    let res = csv::parse(reader);
+    match res {
+        Ok(_) => {
+            println!("Parsed CSV");
+        }
+        Err(e) => {
+            println!("{:?}", e);
+        }
+    }
+
+    Ok(())
+}
+
+fn twiddler5_to_twiddler6<R: Read + Seek, W: Write + Seek>(
+    reader: &mut R,
+    writer: &mut W,
+) -> std::io::Result<()> {
+    let res = twiddler5::parse(reader);
     match res {
         Ok(config) => {
             let mut config6 = twiddler6::Config::new();
@@ -82,7 +130,7 @@ fn main() -> std::io::Result<()> {
                 });
             });
 
-            twiddler6::write(config6, &mut opt.output)?;
+            twiddler6::write(config6, writer)?;
         }
         Err(e) => {
             println!("{:?}", e);
