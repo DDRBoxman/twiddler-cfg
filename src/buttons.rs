@@ -8,6 +8,7 @@ pub enum TwiddlerButtons {
     F4L, F4M, F4R,
 }
 
+#[derive(Debug)]
 pub struct ButtonState {
     pub t1: bool,
     pub t2: bool,

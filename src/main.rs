@@ -6,6 +6,7 @@ use twiddler6::HidCommand;
 
 mod buttons;
 mod csv;
+mod dido;
 mod hid;
 mod twiddler5;
 mod twiddler6;
