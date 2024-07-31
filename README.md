@@ -1,6 +1,6 @@
 # Twiddler-cfg
 
-Currently converts twiddler v5 configs into v6. Possibly more down the road.
+Tool for converting and massaging twiddler configs!
 
 ```
 ./twiddler_cfg ./configs/backspice2_v5.cfg ./backspicev2_v6.cfg
