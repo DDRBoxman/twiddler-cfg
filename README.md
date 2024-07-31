@@ -16,8 +16,9 @@ Currently converts twiddler v5 configs into v6. Possibly more down the road.
 - [ ] Ensure output has default system chords
 - [ ] Read CSV
 - [ ] Write CSV
-- [ ] Read dido text format
+- [x] Read dido text format
 - [ ] Write dido format
+- [ ] Ability to autogenerate shift chords for uppercase letters
 
 
 ### Development stuff
