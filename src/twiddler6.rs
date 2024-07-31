@@ -183,6 +183,32 @@ impl From<ButtonState> for ButtonData {
     }
 }
 
+impl From<&ButtonState> for ButtonData {
+    fn from(state: &ButtonState) -> Self {
+        ButtonData::new()
+            .with_f0l(state.f0l)
+            .with_f0m(state.f0m)
+            .with_f0r(state.f0r)
+            .with_t0(false)
+            .with_t3(state.t3)
+            .with_f3r(state.f3r)
+            .with_f3m(state.f3m)
+            .with_f3l(state.f3l)
+            .with_t4(state.t4)
+            .with_f4r(state.f4r)
+            .with_f4m(state.f4m)
+            .with_f4l(state.f4l)
+            .with_t1(state.t1)
+            .with_f1r(state.f1r)
+            .with_f1m(state.f1m)
+            .with_f1l(state.f1l)
+            .with_t2(state.t2)
+            .with_f2r(state.f2r)
+            .with_f2m(state.f2m)
+            .with_f2l(state.f2l)
+    }
+}
+
 impl Into<ButtonState> for ButtonData {
     fn into(self) -> ButtonState {
         ButtonState {

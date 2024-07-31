@@ -143,7 +143,7 @@ fn parse_legacy_notation(thumb: String, finger: String) -> ButtonState {
                 3 => button_state.f4l = true,
                 _ => (),
             },
-            'O' => match i {
+            'M' => match i {
                 0 => button_state.f1m = true,
                 1 => button_state.f2m = true,
                 2 => button_state.f3m = true,
