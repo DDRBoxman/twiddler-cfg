@@ -1,10 +1,13 @@
-use std::{default, io::{Read, Seek, SeekFrom, Write}};
+use std::{
+    default,
+    io::{Read, Seek, SeekFrom, Write},
+};
 
 use binrw::{binrw, BinRead, BinResult, BinWrite, Endian};
 use modular_bitfield::{bitfield, prelude::B4};
 use std::convert::From;
 
-use crate::buttons::ButtonState;
+use crate::{buttons::ButtonState, hid};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[binrw]
@@ -26,7 +29,7 @@ pub struct ConfigFlags {
     haptic: bool,
     left_mouse_pos: bool, // FOL or FOR
     direct: bool,
-    sticky_num: bool, 
+    sticky_num: bool,
     sticky_alt: bool,
     sticky_ctrl: bool,
     sticky_shift: bool,
@@ -67,7 +70,7 @@ impl Config {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[binrw]
 #[brw(little)]
 pub struct Chord {
@@ -76,7 +79,7 @@ pub struct Chord {
     pub command: Command,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[binrw]
 #[brw(little)]
 pub struct Command {
@@ -85,7 +88,7 @@ pub struct Command {
     pub data: CommandData,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[binrw]
 #[br(little)]
 #[br(import { command_type: &CommandType })]
@@ -100,7 +103,7 @@ pub(crate) enum CommandData {
     None(u8, u8, u8),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[binrw]
 pub struct HidCommand {
     pub modifier: u8,
@@ -267,7 +270,54 @@ pub(crate) fn parse<R: Read + Seek>(reader: &mut R) -> Result<Config, Box<dyn st
     }
 }
 
-pub(crate) fn write<W: Write + Seek>(mut config: Config, writer: &mut W) -> std::io::Result<()> {
+pub(crate) fn write<W: Write + Seek>(
+    mut config: Config,
+    writer: &mut W,
+    gen_caps: Option<i32>,
+) -> std::io::Result<()> {
+    // Generate chords for caps
+    if let Some(caps) = gen_caps {
+        let mut new_chords = vec![];
+        for chord in &config.chords {
+            if chord.command.command_type == CommandType::Keyboard
+                && chord.buttons.t0() == false
+                && chord.buttons.t1() == false
+                && chord.buttons.t2() == false
+                && chord.buttons.t3() == false
+                && chord.buttons.t4() == false
+            {
+                if let CommandData::Keyboard(hid_command, _) = &chord.command.data {
+                    if hid::ALPHA_HID_CODES.contains(&hid_command.key_code) {
+                        let mut chord = chord.clone();
+
+                        match caps {
+                            1 => chord.buttons.set_t1(true),
+                            2 => chord.buttons.set_t2(true),
+                            3 => chord.buttons.set_t3(true),
+                            4 => chord.buttons.set_t4(true),
+                            _ => {}
+                        }
+
+                        chord.command.data = CommandData::Keyboard(
+                            HidCommand {
+                                key_code: hid_command.key_code,
+                                modifier: hid_command.modifier | 0x2, //  Add left shift
+                            },
+                            0,
+                        );
+
+                        new_chords.push(chord);
+                    }
+                }
+            }
+        }
+
+        if new_chords.len() > 0 {
+            println!("Adding {} uppercase chords", new_chords.len());
+            config.chords.append(&mut new_chords);
+        }
+    }
+
     // update number of chords
     config.number_of_chords = config.chords.len() as u16;
 
@@ -307,13 +357,11 @@ pub(crate) fn write<W: Write + Seek>(mut config: Config, writer: &mut W) -> std:
 
     // TODO: Figure out more config format details
     writer.seek(SeekFrom::Start(0x13));
-    let data =
-        hex::decode("03000102030405060708090A0C0D0F111416181A1D").unwrap();
+    let data = hex::decode("03000102030405060708090A0C0D0F111416181A1D").unwrap();
     writer.write(&data)?;
 
     Ok(())
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -321,7 +369,6 @@ mod tests {
 
     #[test]
     fn test_header() {
-
         let mut file = std::fs::File::open("test/configs/v6/haptic_off.cfg").unwrap();
         let conf = Config::read(&mut file).unwrap();
         assert!(conf.flags.haptic() == false);
@@ -337,7 +384,7 @@ mod tests {
         let mut file = std::fs::File::open("test/configs/v6/sticky_shift.cfg").unwrap();
         let conf = Config::read(&mut file).unwrap();
         assert!(conf.flags.sticky_shift() == true);
-        
+
         let mut file = std::fs::File::open("test/configs/v6/sticky_ctrl.cfg").unwrap();
         let conf = Config::read(&mut file).unwrap();
         assert!(conf.flags.sticky_ctrl() == true);

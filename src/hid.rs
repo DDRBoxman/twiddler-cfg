@@ -1,5 +1,6 @@
 use bimap::BiMap;
 use std::collections::HashMap;
+use std::ops::RangeInclusive;
 use std::sync::OnceLock;
 
 fn modifiers_hid() -> &'static HashMap<&'static str, usize> {
@@ -17,6 +18,8 @@ fn modifiers_hid() -> &'static HashMap<&'static str, usize> {
         m
     })
 }
+
+pub const ALPHA_HID_CODES: RangeInclusive<u8> = 0x04u8..=0x1Du8;
 
 pub fn keys_hid() -> &'static BiMap<u8, String> {
     static KEYS: OnceLock<BiMap<u8, String>> = OnceLock::new();

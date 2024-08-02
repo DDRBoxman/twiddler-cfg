@@ -24,6 +24,11 @@ struct Opt {
 
     #[clap(value_parser)]
     output: Output,
+
+    /// Generate upper case versions of chords with shift,
+    /// 1 2 3 or 4 for the thumb key that should act as shift
+    #[clap(long, short)]
+    generate_caps: Option<i32>,
 }
 
 fn main() -> std::io::Result<()> {
@@ -33,7 +38,7 @@ fn main() -> std::io::Result<()> {
     if opt.input.read_u8().unwrap() == 0x05 {
         println!("Reading input as Twiddler 5 config");
         opt.input.seek(SeekFrom::Start(0));
-        twiddler5_to_twiddler6(&mut opt.input, &mut opt.output);
+        twiddler5_to_twiddler6(&mut opt.input, &mut opt.output, opt.generate_caps);
         return Ok(());
     }
 
@@ -46,13 +51,13 @@ fn main() -> std::io::Result<()> {
     opt.input.seek(SeekFrom::Start(0));
     if opt.input.read_u8().unwrap() == '#' as u8 {
         println!("Starts with a #, assuming Dido config");
-        dido_to_twiddler6(&mut opt.input, &mut opt.output);
+        dido_to_twiddler6(&mut opt.input, &mut opt.output, opt.generate_caps);
         return Ok(());
     }
 
     println!("Reading input as csv config");
     opt.input.seek(SeekFrom::Start(0));
-    csv_to_twiddler6(&mut opt.input, &mut opt.output);
+    csv_to_twiddler6(&mut opt.input, &mut opt.output, opt.generate_caps);
 
     Ok(())
 }
@@ -60,6 +65,7 @@ fn main() -> std::io::Result<()> {
 fn dido_to_twiddler6<R: Read + Seek, W: Write + Seek>(
     reader: &mut R,
     writer: &mut W,
+    gen_caps: Option<i32>,
 ) -> std::io::Result<()> {
     let res = dido::parse(reader);
 
@@ -119,7 +125,7 @@ fn dido_to_twiddler6<R: Read + Seek, W: Write + Seek>(
                 });
             });
 
-            twiddler6::write(config6, writer)?;
+            twiddler6::write(config6, writer, gen_caps)?;
         }
         Err(e) => {
             println!("{:?}", e);
@@ -132,6 +138,7 @@ fn dido_to_twiddler6<R: Read + Seek, W: Write + Seek>(
 fn csv_to_twiddler6<R: Read + Seek, W: Write + Seek>(
     reader: &mut R,
     writer: &mut W,
+    gen_caps: Option<i32>,
 ) -> std::io::Result<()> {
     let res = csv::parse(reader);
     match res {
@@ -149,6 +156,7 @@ fn csv_to_twiddler6<R: Read + Seek, W: Write + Seek>(
 fn twiddler5_to_twiddler6<R: Read + Seek, W: Write + Seek>(
     reader: &mut R,
     writer: &mut W,
+    gen_caps: Option<i32>,
 ) -> std::io::Result<()> {
     let res = twiddler5::parse(reader);
     match res {
@@ -212,7 +220,7 @@ fn twiddler5_to_twiddler6<R: Read + Seek, W: Write + Seek>(
                 });
             });
 
-            twiddler6::write(config6, writer)?;
+            twiddler6::write(config6, writer, gen_caps)?;
         }
         Err(e) => {
             println!("{:?}", e);
