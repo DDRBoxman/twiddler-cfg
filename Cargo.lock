@@ -437,7 +437,7 @@ dependencies = [
 
 [[package]]
 name = "twiddler_cfg"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "bimap",
  "binrw",

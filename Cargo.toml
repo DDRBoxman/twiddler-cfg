@@ -1,6 +1,6 @@
 [package]
 name = "twiddler_cfg"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Convert Twiddler v5 configs to Twiddler v6 configs"
 
