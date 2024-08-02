@@ -1,4 +1,4 @@
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::{default, io::{Read, Seek, SeekFrom, Write}};
 
 use binrw::{binrw, BinRead, BinResult, BinWrite, Endian};
 use modular_bitfield::{bitfield, prelude::B4};
@@ -18,14 +18,32 @@ pub enum CommandType {
     ListOfCommands = 7,
 }
 
+#[bitfield]
+#[derive(BinRead, BinWrite, Debug, Copy, Clone, Default)]
+#[br(map = Self::from_bytes)]
+pub struct ConfigFlags {
+    repeat_delay_enable: bool,
+    haptic: bool,
+    left_mouse_pos: bool, // FOL or FOR
+    direct: bool,
+    sticky_num: bool, 
+    sticky_alt: bool,
+    sticky_ctrl: bool,
+    sticky_shift: bool,
+}
+
 #[binrw]
 #[brw(little)]
 #[derive(Debug)]
 pub struct Config {
     #[brw(pad_before = 0x4)]
     version: u8,
-    left_mouse: u8,
+    flags: ConfigFlags,
     pub number_of_chords: u16,
+    #[brw(pad_before = 0x4)]
+    pub idle_time: u16,
+    pub mouse_sensitivity: u8,
+    pub key_repeat_delay: u8,
     #[brw(seek_before = SeekFrom::Start(0x28))]
     #[br(count = number_of_chords)]
     pub chords: Vec<Chord>,
@@ -38,10 +56,13 @@ impl Config {
     pub fn new() -> Self {
         Self {
             version: 6,
-            left_mouse: 1,
+            flags: ConfigFlags::default(),
             number_of_chords: 0,
             chords: vec![],
             command_lists: vec![],
+            idle_time: 600,
+            mouse_sensitivity: 0x7f,
+            key_repeat_delay: 127,
         }
     }
 }
@@ -285,10 +306,59 @@ pub(crate) fn write<W: Write + Seek>(mut config: Config, writer: &mut W) -> std:
     }
 
     // TODO: Figure out more config format details
-    writer.seek(SeekFrom::Start(0x8));
+    writer.seek(SeekFrom::Start(0x13));
     let data =
-        hex::decode("58020000000000007F640003000102030405060708090A0C0D0F111416181A1D").unwrap();
+        hex::decode("03000102030405060708090A0C0D0F111416181A1D").unwrap();
     writer.write(&data)?;
 
     Ok(())
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_header() {
+
+        let mut file = std::fs::File::open("test/configs/v6/haptic_off.cfg").unwrap();
+        let conf = Config::read(&mut file).unwrap();
+        assert!(conf.flags.haptic() == false);
+
+        let mut file = std::fs::File::open("test/configs/v6/sticky_alt.cfg").unwrap();
+        let conf = Config::read(&mut file).unwrap();
+        assert!(conf.flags.sticky_alt() == true);
+
+        let mut file = std::fs::File::open("test/configs/v6/sticky_num.cfg").unwrap();
+        let conf = Config::read(&mut file).unwrap();
+        assert!(conf.flags.sticky_num() == true);
+
+        let mut file = std::fs::File::open("test/configs/v6/sticky_shift.cfg").unwrap();
+        let conf = Config::read(&mut file).unwrap();
+        assert!(conf.flags.sticky_shift() == true);
+        
+        let mut file = std::fs::File::open("test/configs/v6/sticky_ctrl.cfg").unwrap();
+        let conf = Config::read(&mut file).unwrap();
+        assert!(conf.flags.sticky_ctrl() == true);
+
+        let mut file = std::fs::File::open("test/configs/v6/key_repeat_delay_off.cfg").unwrap();
+        let conf = Config::read(&mut file).unwrap();
+        assert!(conf.flags.repeat_delay_enable() == false);
+
+        let mut file = std::fs::File::open("test/configs/v6/left_mouse_pos.cfg").unwrap();
+        let conf = Config::read(&mut file).unwrap();
+        assert!(conf.flags.left_mouse_pos() == true);
+
+        let mut file = std::fs::File::open("test/configs/v6/empty.cfg").unwrap();
+        let conf = Config::read(&mut file).unwrap();
+        assert!(conf.flags.left_mouse_pos() == false);
+        assert!(conf.flags.repeat_delay_enable() == true);
+        assert!(conf.flags.haptic() == false);
+        assert!(conf.flags.sticky_alt() == false);
+        assert!(conf.flags.sticky_num() == false);
+        assert!(conf.flags.sticky_shift() == false);
+        assert!(conf.flags.sticky_ctrl() == false);
+        assert!(conf.flags.repeat_delay_enable() == true);
+    }
 }

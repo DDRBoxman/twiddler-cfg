@@ -13,7 +13,7 @@ mod hid;
 mod twiddler5;
 mod twiddler6;
 
-use clap::Parser;
+use clap::{ArgAction, Parser};
 use clio::*;
 
 #[derive(Parser)]

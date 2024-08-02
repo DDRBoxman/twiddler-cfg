@@ -5,15 +5,23 @@ https://www.mytwiddler.com/doc/doku.php?id=twiddler_config_format
 v5 Format
 https://www.mytwiddler.com/doc/static/twiddler3_config_format_v5_rev3.pdf
 
-
 v6 Format reversing
 
 00-03: 0
 0004: 6 // version
-0005: left mouse
-    F0L: 1
-    F0R: 5
-0006: number of chords
+0005: config flags // bitfield
+    repeat delay enable
+    haptic
+    left_mouse_pos // FOL or FOR
+    direct
+    sticky_num
+    sticky_alt
+    sticky_ctrl
+    sticky_shift
+0006: number of chords  (3C 00) 1 minute (10 0E) 10 minute
+08-09: idle time
+0010: mouse sensitivity 0x01 -> 254, 0xFE -> 1
+0011: key repeat delay 0x01-0xFA (10ms - 2500ms)
 0030: Chords
     8 bytes per chord
 
