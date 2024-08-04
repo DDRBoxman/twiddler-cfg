@@ -81,7 +81,7 @@ pub struct Command {
 #[br(import { command_type: &CommandType })]
 pub(crate) enum CommandData {
     #[br(assert(*command_type == CommandType::ListOfCommands))]
-    ListOfCommands(u8, u16),
+    ListOfCommands(u16, u8),
     #[br(assert(*command_type == CommandType::Keyboard))]
     Keyboard(HidCommand, u8),
     #[br(assert(*command_type == CommandType::System))]
@@ -261,6 +261,17 @@ impl Config {
     }
 }
 
+pub(crate) fn parse<R: Read + Seek>(reader: &mut R) -> Result<Config, Box<dyn std::error::Error>> {
+    let res = Config::read(reader);
+    match res {
+        Ok(config) => {
+            //println!("{:?}", config);
+            return Ok(config);
+        }
+        Err(e) => Err(Box::new(e)),
+    }
+}
+
 pub(crate) fn write<W: Write + Seek>(
     mut config: Config,
     writer: &mut W,
@@ -329,7 +340,7 @@ pub(crate) fn write<W: Write + Seek>(
     for i in 0..config.chords.len() {
         if config.chords[i].command.command_type == CommandType::ListOfCommands {
             let size = config.command_lists[j].0.len() * 4;
-            config.chords[i].command.data = CommandData::ListOfCommands(0, offset);
+            config.chords[i].command.data = CommandData::ListOfCommands(offset, 0);
             offset += size as u16;
             offset += 4; // 0u32
             j += 1;
@@ -361,7 +372,7 @@ mod tests {
     #[test]
     fn test_header() {
         let mut file = std::fs::File::open("test/configs/v7/haptic_off.cfg").unwrap();
-        let conf = Config::read(&mut file).unwrap();
+        let conf: Config = Config::read(&mut file).unwrap();
         assert!(conf.flags.haptic() == false);
 
         let mut file = std::fs::File::open("test/configs/v7/direct.cfg").unwrap();

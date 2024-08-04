@@ -43,15 +43,19 @@ fn main() -> std::io::Result<()> {
         return Ok(());
     }
 
-    opt.input.seek(SeekFrom::Start(5));
+    opt.input.seek(SeekFrom::Start(4));
     if opt.input.read_u8().unwrap() == 0x06 {
         println!("Twiddler 6 config detected");
         return Ok(());
     }
 
-    opt.input.seek(SeekFrom::Start(5));
+    opt.input.seek(SeekFrom::Start(4));
     if opt.input.read_u8().unwrap() == 0x07 {
         println!("Twiddler 7 config detected");
+        opt.input.seek(SeekFrom::Start(0));
+        let conf = twiddler7::parse(&mut opt.input).unwrap();
+        twiddler7::write(conf, &mut opt.output, None)?;
+
         return Ok(());
     }
 
