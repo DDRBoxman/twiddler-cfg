@@ -93,8 +93,7 @@ fn dido_to_twiddler7<R: Read + Seek, W: Write + Seek>(
                                 twiddler7::HidCommand {
                                     modifier: c.modifiers,
                                     key_code,
-                                },
-                                0,
+                                }
                             ),
                         }
                     }
@@ -102,7 +101,7 @@ fn dido_to_twiddler7<R: Read + Seek, W: Write + Seek>(
                         let index = index.parse::<usize>().unwrap();
                         let command = twiddler7::Command {
                             command_type: twiddler7::CommandType::ListOfCommands,
-                            data: twiddler7::CommandData::ListOfCommands(0, 0),
+                            data: twiddler7::CommandData::ListOfCommands(0),
                         };
 
                         let out_string_hids = &config.strings[index];
@@ -116,8 +115,7 @@ fn dido_to_twiddler7<R: Read + Seek, W: Write + Seek>(
                                     twiddler7::HidCommand {
                                         key_code: hids.0,
                                         modifier: hids.1,
-                                    },
-                                    0,
+                                    }
                                 ),
                             });
                         }

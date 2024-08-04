@@ -72,6 +72,7 @@ pub enum CommandType {
 pub struct Command {
     pub command_type: CommandType,
     #[br(args { command_type: &command_type })]
+    #[brw(pad_after = 1)]
     pub data: CommandData,
 }
 
@@ -81,13 +82,13 @@ pub struct Command {
 #[br(import { command_type: &CommandType })]
 pub(crate) enum CommandData {
     #[br(assert(*command_type == CommandType::ListOfCommands))]
-    ListOfCommands(u16, u8),
+    ListOfCommands(u16),
     #[br(assert(*command_type == CommandType::Keyboard))]
-    Keyboard(HidCommand, u8),
+    Keyboard(HidCommand),
     #[br(assert(*command_type == CommandType::System))]
-    System(u8, u8, u8),
+    System(u8, u8),
     #[br(assert(*command_type == CommandType::None))]
-    None(u8, u8, u8),
+    None(u8, u8),
 }
 
 #[derive(Debug, Clone)]
@@ -288,7 +289,7 @@ pub(crate) fn write<W: Write + Seek>(
                 && chord.buttons.t3() == false
                 && chord.buttons.t4() == false
             {
-                if let CommandData::Keyboard(hid_command, _) = &chord.command.data {
+                if let CommandData::Keyboard(hid_command) = &chord.command.data {
                     if hid::ALPHA_HID_CODES.contains(&hid_command.key_code) {
                         let mut chord = chord.clone();
 
@@ -304,8 +305,7 @@ pub(crate) fn write<W: Write + Seek>(
                             HidCommand {
                                 key_code: hid_command.key_code,
                                 modifier: hid_command.modifier | 0x2, //  Add left shift
-                            },
-                            0,
+                            }
                         );
 
                         new_chords.push(chord);
@@ -340,7 +340,7 @@ pub(crate) fn write<W: Write + Seek>(
     for i in 0..config.chords.len() {
         if config.chords[i].command.command_type == CommandType::ListOfCommands {
             let size = config.command_lists[j].0.len() * 4;
-            config.chords[i].command.data = CommandData::ListOfCommands(offset, 0);
+            config.chords[i].command.data = CommandData::ListOfCommands(offset);
             offset += size as u16;
             offset += 4; // 0u32
             j += 1;
