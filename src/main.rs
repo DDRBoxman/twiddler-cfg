@@ -12,6 +12,7 @@ mod dido;
 mod hid;
 mod twiddler5;
 mod twiddler6;
+mod twiddler7;
 
 use clap::{ArgAction, Parser};
 use clio::*;
@@ -48,10 +49,16 @@ fn main() -> std::io::Result<()> {
         return Ok(());
     }
 
+    opt.input.seek(SeekFrom::Start(5));
+    if opt.input.read_u8().unwrap() == 0x07 {
+        println!("Twiddler 7 config detected");
+        return Ok(());
+    }
+
     opt.input.seek(SeekFrom::Start(0));
     if opt.input.read_u8().unwrap() == '#' as u8 {
         println!("Starts with a #, assuming Dido config");
-        dido_to_twiddler6(&mut opt.input, &mut opt.output, opt.generate_caps);
+        dido_to_twiddler7(&mut opt.input, &mut opt.output, opt.generate_caps);
         return Ok(());
     }
 
@@ -62,7 +69,7 @@ fn main() -> std::io::Result<()> {
     Ok(())
 }
 
-fn dido_to_twiddler6<R: Read + Seek, W: Write + Seek>(
+fn dido_to_twiddler7<R: Read + Seek, W: Write + Seek>(
     reader: &mut R,
     writer: &mut W,
     gen_caps: Option<i32>,
@@ -71,15 +78,15 @@ fn dido_to_twiddler6<R: Read + Seek, W: Write + Seek>(
 
     match res {
         Ok(config) => {
-            let mut config6 = twiddler6::Config::new();
+            let mut config7 = twiddler7::Config::new();
             config.chords.iter().for_each(|c| {
                 let command = match &c.output {
                     dido::ChordOutput::HidCode(key_code) => {
                         let key_code = key_code.parse().unwrap();
-                        twiddler6::Command {
-                            command_type: twiddler6::CommandType::Keyboard,
-                            data: twiddler6::CommandData::Keyboard(
-                                HidCommand {
+                        twiddler7::Command {
+                            command_type: twiddler7::CommandType::Keyboard,
+                            data: twiddler7::CommandData::Keyboard(
+                                twiddler7::HidCommand {
                                     modifier: c.modifiers,
                                     key_code,
                                 },
@@ -89,9 +96,9 @@ fn dido_to_twiddler6<R: Read + Seek, W: Write + Seek>(
                     }
                     dido::ChordOutput::StringIndex(index) => {
                         let index = index.parse::<usize>().unwrap();
-                        let command = twiddler6::Command {
-                            command_type: twiddler6::CommandType::ListOfCommands,
-                            data: twiddler6::CommandData::ListOfCommands(0, 0),
+                        let command = twiddler7::Command {
+                            command_type: twiddler7::CommandType::ListOfCommands,
+                            data: twiddler7::CommandData::ListOfCommands(0, 0),
                         };
 
                         let out_string_hids = &config.strings[index];
@@ -99,10 +106,10 @@ fn dido_to_twiddler6<R: Read + Seek, W: Write + Seek>(
                         let mut command_list = vec![];
 
                         for hids in out_string_hids {
-                            command_list.push(twiddler6::Command {
-                                command_type: twiddler6::CommandType::Keyboard,
-                                data: twiddler6::CommandData::Keyboard(
-                                    HidCommand {
+                            command_list.push(twiddler7::Command {
+                                command_type: twiddler7::CommandType::Keyboard,
+                                data: twiddler7::CommandData::Keyboard(
+                                    twiddler7::HidCommand {
                                         key_code: hids.0,
                                         modifier: hids.1,
                                     },
@@ -111,21 +118,21 @@ fn dido_to_twiddler6<R: Read + Seek, W: Write + Seek>(
                             });
                         }
 
-                        config6
+                        config7
                             .command_lists
-                            .push(twiddler6::CommandList(command_list));
+                            .push(twiddler7::CommandList(command_list));
 
                         command
                     }
                 };
 
-                config6.chords.push(twiddler6::Chord {
-                    buttons: twiddler6::ButtonData::from(&c.buttons),
+                config7.chords.push(twiddler7::Chord {
+                    buttons: twiddler7::ButtonData::from(&c.buttons),
                     command,
                 });
             });
 
-            twiddler6::write(config6, writer, gen_caps)?;
+            twiddler7::write(config7, writer, gen_caps)?;
         }
         Err(e) => {
             println!("{:?}", e);

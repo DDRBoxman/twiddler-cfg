@@ -29,6 +29,8 @@ Options:
 - [x] Read v5 configs
 - [x] Read v6 configs
 - [x] Write v6 configs
+- [ ] Read v7 configs
+- [ ] Write v7 configs
 - [x] Chord mappings
 - [x] v5 global config (mouse accel, mouse clicks, etc.)
 - [x] v6 global config (mouse accel, mouse clicks, etc.)
