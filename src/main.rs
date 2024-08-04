@@ -4,7 +4,6 @@ extern crate simple_error;
 use std::io::{Read, Seek, SeekFrom, Write};
 
 use byteorder::ReadBytesExt;
-use twiddler6::HidCommand;
 
 mod buttons;
 mod csv;
@@ -16,6 +15,7 @@ mod twiddler7;
 
 use clap::{ArgAction, Parser};
 use clio::*;
+use serde::de::Error;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -32,209 +32,182 @@ struct Opt {
     generate_caps: Option<i32>,
 }
 
-fn main() -> std::io::Result<()> {
+fn main() {
     let mut opt = Opt::parse();
 
-    //opt.input.seek(SeekFrom::Start(0));
-    if opt.input.read_u8().unwrap() == 0x05 {
+    match load_config(&mut opt.input) {
+        Ok(config) => {
+            let res = twiddler7::write(config, &mut opt.output, opt.generate_caps);
+            match res {
+                Ok(_) => {
+                    println!("Done");
+                }
+                Err(e) => {
+                    println!("Failed to write output config{:?}", e);
+                }
+            }
+        }
+        Err(e) => {
+            println!("Failed to load input config{:?}", e);
+        }
+    }
+}
+
+fn load_config<R: Read + Seek>(
+    reader: &mut R,
+) -> std::result::Result<twiddler7::Config, Box<dyn std::error::Error>> {
+    reader.seek(SeekFrom::Start(0));
+    if reader.read_u8().unwrap() == 0x05 {
         println!("Reading input as Twiddler 5 config");
-        opt.input.seek(SeekFrom::Start(0));
-        twiddler5_to_twiddler6(&mut opt.input, &mut opt.output, opt.generate_caps);
-        return Ok(());
+        reader.seek(SeekFrom::Start(0));
+        let config = twiddler5::parse(reader)?;
+        return Ok(twiddler5_to_twiddler7(&config));
     }
 
-    opt.input.seek(SeekFrom::Start(4));
-    if opt.input.read_u8().unwrap() == 0x06 {
+    reader.seek(SeekFrom::Start(4));
+    if reader.read_u8().unwrap() == 0x06 {
         println!("Twiddler 6 config detected");
-        return Ok(());
+        bail!("Twiddler 6 config not supported yet");
     }
 
-    opt.input.seek(SeekFrom::Start(4));
-    if opt.input.read_u8().unwrap() == 0x07 {
+    reader.seek(SeekFrom::Start(4));
+    if reader.read_u8().unwrap() == 0x07 {
         println!("Twiddler 7 config detected");
-        opt.input.seek(SeekFrom::Start(0));
-        let conf = twiddler7::parse(&mut opt.input).unwrap();
-        twiddler7::write(conf, &mut opt.output, None)?;
-
-        return Ok(());
+        println!("Running through twiddler 7 parser to ensure it's valid");
+        reader.seek(SeekFrom::Start(0));
+        let conf = twiddler7::parse(reader)?;
+        return Ok(conf);
     }
 
-    opt.input.seek(SeekFrom::Start(0));
-    if opt.input.read_u8().unwrap() == '#' as u8 {
+    reader.seek(SeekFrom::Start(0));
+    if reader.read_u8().unwrap() == '#' as u8 {
         println!("Starts with a #, assuming Dido config");
-        dido_to_twiddler7(&mut opt.input, &mut opt.output, opt.generate_caps);
-        return Ok(());
+        let res = dido::parse(reader);
+        match res {
+            Ok(config) => {
+                let config7 = dido_to_twiddler7(config);
+                return Ok(config7);
+            }
+            Err(e) => {
+                bail!("Failed parsing dido config {:?}", e);
+            }
+        }
     }
 
     println!("Reading input as csv config");
-    opt.input.seek(SeekFrom::Start(0));
-    csv_to_twiddler6(&mut opt.input, &mut opt.output, opt.generate_caps);
-
-    Ok(())
+    reader.seek(SeekFrom::Start(0));
+    let res = csv::parse(reader);
+    bail!("CSV conversion implementation incomplete");
 }
 
-fn dido_to_twiddler7<R: Read + Seek, W: Write + Seek>(
-    reader: &mut R,
-    writer: &mut W,
-    gen_caps: Option<i32>,
-) -> std::io::Result<()> {
-    let res = dido::parse(reader);
+fn dido_to_twiddler7(config: dido::Config) -> twiddler7::Config {
+    let mut config7 = twiddler7::Config::new();
+    config.chords.iter().for_each(|c| {
+        let command = match &c.output {
+            dido::ChordOutput::HidCode(key_code) => {
+                let key_code = key_code.parse().unwrap();
+                twiddler7::Command {
+                    command_type: twiddler7::CommandType::Keyboard,
+                    data: twiddler7::CommandData::Keyboard(twiddler7::HidCommand {
+                        modifier: c.modifiers,
+                        key_code,
+                    }),
+                }
+            }
+            dido::ChordOutput::StringIndex(index) => {
+                let index = index.parse::<usize>().unwrap();
+                let command = twiddler7::Command {
+                    command_type: twiddler7::CommandType::ListOfCommands,
+                    data: twiddler7::CommandData::ListOfCommands(0),
+                };
 
-    match res {
-        Ok(config) => {
-            let mut config7 = twiddler7::Config::new();
-            config.chords.iter().for_each(|c| {
-                let command = match &c.output {
-                    dido::ChordOutput::HidCode(key_code) => {
-                        let key_code = key_code.parse().unwrap();
-                        twiddler7::Command {
-                            command_type: twiddler7::CommandType::Keyboard,
-                            data: twiddler7::CommandData::Keyboard(
-                                twiddler7::HidCommand {
-                                    modifier: c.modifiers,
-                                    key_code,
-                                }
-                            ),
-                        }
-                    }
-                    dido::ChordOutput::StringIndex(index) => {
-                        let index = index.parse::<usize>().unwrap();
-                        let command = twiddler7::Command {
-                            command_type: twiddler7::CommandType::ListOfCommands,
-                            data: twiddler7::CommandData::ListOfCommands(0),
-                        };
+                let out_string_hids = &config.strings[index];
 
-                        let out_string_hids = &config.strings[index];
+                let mut command_list = vec![];
 
-                        let mut command_list = vec![];
+                for hids in out_string_hids {
+                    command_list.push(twiddler7::Command {
+                        command_type: twiddler7::CommandType::Keyboard,
+                        data: twiddler7::CommandData::Keyboard(twiddler7::HidCommand {
+                            key_code: hids.0,
+                            modifier: hids.1,
+                        }),
+                    });
+                }
 
-                        for hids in out_string_hids {
+                config7
+                    .command_lists
+                    .push(twiddler7::CommandList(command_list));
+
+                command
+            }
+        };
+
+        config7.chords.push(twiddler7::Chord {
+            buttons: twiddler7::ButtonData::from(&c.buttons),
+            command,
+        });
+    });
+
+    config7
+}
+
+fn twiddler5_to_twiddler7(config: &twiddler5::Config) -> twiddler7::Config {
+    let mut config7 = twiddler7::Config::new();
+    config.chords.iter().for_each(|c| {
+        let button_state = c.button_state();
+
+        let command = match c.mapping {
+            twiddler5::ChordMapping::KeyMapping(modifier, key_code) => twiddler7::Command {
+                command_type: twiddler7::CommandType::Keyboard,
+                data: twiddler7::CommandData::Keyboard(twiddler7::HidCommand {
+                    modifier,
+                    key_code,
+                }),
+            },
+            twiddler5::ChordMapping::StringMapping(_, index) => {
+                let command = twiddler7::Command {
+                    command_type: twiddler7::CommandType::ListOfCommands,
+                    data: twiddler7::CommandData::ListOfCommands(0),
+                };
+
+                let string_pos = config.string_locations[index as usize];
+                let contents = config
+                    .string_contents
+                    .iter()
+                    .find(|sc| sc.pos == string_pos.into())
+                    .unwrap();
+
+                let mut command_list = vec![];
+
+                for c in &contents.keys {
+                    match c {
+                        twiddler5::ChordMapping::KeyMapping(modifier, key_code) => {
                             command_list.push(twiddler7::Command {
                                 command_type: twiddler7::CommandType::Keyboard,
-                                data: twiddler7::CommandData::Keyboard(
-                                    twiddler7::HidCommand {
-                                        key_code: hids.0,
-                                        modifier: hids.1,
-                                    }
-                                ),
+                                data: twiddler7::CommandData::Keyboard(twiddler7::HidCommand {
+                                    modifier: *modifier,
+                                    key_code: *key_code,
+                                }),
                             });
                         }
-
-                        config7
-                            .command_lists
-                            .push(twiddler7::CommandList(command_list));
-
-                        command
+                        _ => {}
                     }
-                };
+                }
 
-                config7.chords.push(twiddler7::Chord {
-                    buttons: twiddler7::ButtonData::from(&c.buttons),
-                    command,
-                });
-            });
+                config7
+                    .command_lists
+                    .push(twiddler7::CommandList(command_list));
 
-            twiddler7::write(config7, writer, gen_caps)?;
-        }
-        Err(e) => {
-            println!("{:?}", e);
-        }
-    }
+                command
+            }
+        };
 
-    Ok(())
-}
+        config7.chords.push(twiddler7::Chord {
+            buttons: button_state.into(),
+            command,
+        });
+    });
 
-fn csv_to_twiddler6<R: Read + Seek, W: Write + Seek>(
-    reader: &mut R,
-    writer: &mut W,
-    gen_caps: Option<i32>,
-) -> std::io::Result<()> {
-    let res = csv::parse(reader);
-    match res {
-        Ok(_) => {
-            println!("Parsed CSV");
-        }
-        Err(e) => {
-            println!("{:?}", e);
-        }
-    }
-
-    Ok(())
-}
-
-fn twiddler5_to_twiddler6<R: Read + Seek, W: Write + Seek>(
-    reader: &mut R,
-    writer: &mut W,
-    gen_caps: Option<i32>,
-) -> std::io::Result<()> {
-    let res = twiddler5::parse(reader);
-    match res {
-        Ok(config) => {
-            let mut config6 = twiddler6::Config::new();
-            config.chords.iter().for_each(|c| {
-                let button_state = c.button_state();
-
-                let command = match c.mapping {
-                    twiddler5::ChordMapping::KeyMapping(modifier, key_code) => twiddler6::Command {
-                        command_type: twiddler6::CommandType::Keyboard,
-                        data: twiddler6::CommandData::Keyboard(
-                            HidCommand { modifier, key_code },
-                            0,
-                        ),
-                    },
-                    twiddler5::ChordMapping::StringMapping(_, index) => {
-                        let command = twiddler6::Command {
-                            command_type: twiddler6::CommandType::ListOfCommands,
-                            data: twiddler6::CommandData::ListOfCommands(0, 0),
-                        };
-
-                        let string_pos = config.string_locations[index as usize];
-                        let contents = config
-                            .string_contents
-                            .iter()
-                            .find(|sc| sc.pos == string_pos.into())
-                            .unwrap();
-
-                        let mut command_list = vec![];
-
-                        for c in &contents.keys {
-                            match c {
-                                twiddler5::ChordMapping::KeyMapping(modifier, key_code) => {
-                                    command_list.push(twiddler6::Command {
-                                        command_type: twiddler6::CommandType::Keyboard,
-                                        data: twiddler6::CommandData::Keyboard(
-                                            HidCommand {
-                                                modifier: *modifier,
-                                                key_code: *key_code,
-                                            },
-                                            0,
-                                        ),
-                                    });
-                                }
-                                _ => {}
-                            }
-                        }
-
-                        config6
-                            .command_lists
-                            .push(twiddler6::CommandList(command_list));
-
-                        command
-                    }
-                };
-
-                config6.chords.push(twiddler6::Chord {
-                    buttons: button_state.into(),
-                    command,
-                });
-            });
-
-            twiddler6::write(config6, writer, gen_caps)?;
-        }
-        Err(e) => {
-            println!("{:?}", e);
-        }
-    }
-
-    Ok(())
+    config7
 }

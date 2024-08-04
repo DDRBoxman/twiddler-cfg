@@ -59,7 +59,9 @@ impl Config {
     pub fn new() -> Self {
         Self {
             version: 6,
-            flags: ConfigFlags::default(),
+            flags: ConfigFlags::default()
+                .with_haptic(true)
+                .with_repeat_delay_enable(true),
             number_of_chords: 0,
             chords: vec![],
             command_lists: vec![],

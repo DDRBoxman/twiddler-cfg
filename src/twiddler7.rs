@@ -4,7 +4,10 @@ use std::{
 };
 
 use binrw::{binrw, BinRead, BinResult, BinWrite, Endian};
-use modular_bitfield::{bitfield, prelude::{B1, B4, B7}};
+use modular_bitfield::{
+    bitfield,
+    prelude::{B1, B4, B7},
+};
 
 use crate::{buttons::ButtonState, hid};
 
@@ -21,7 +24,7 @@ pub struct ConfigFlags {
     sticky_ctrl: bool,
     sticky_shift: bool,
     left_mouse_pos: bool, // FOL or FOR
-    unknown2: B7, // future expansion??
+    unknown2: B7,         // future expansion??
 }
 
 #[binrw]
@@ -251,7 +254,9 @@ impl Config {
     pub fn new() -> Self {
         Self {
             version: 7,
-            flags: ConfigFlags::default(),
+            flags: ConfigFlags::default()
+                .with_haptic(true)
+                .with_repeat_delay_enable(true),
             number_of_chords: 0,
             idle_time: 600,
             mouse_sensitivity: 0x7f,
@@ -301,12 +306,10 @@ pub(crate) fn write<W: Write + Seek>(
                             _ => {}
                         }
 
-                        chord.command.data = CommandData::Keyboard(
-                            HidCommand {
-                                key_code: hid_command.key_code,
-                                modifier: hid_command.modifier | 0x2, //  Add left shift
-                            }
-                        );
+                        chord.command.data = CommandData::Keyboard(HidCommand {
+                            key_code: hid_command.key_code,
+                            modifier: hid_command.modifier | 0x2, //  Add left shift
+                        });
 
                         new_chords.push(chord);
                     }
@@ -379,7 +382,7 @@ mod tests {
         let conf = Config::read(&mut file).unwrap();
         assert!(conf.flags.direct() == true);
 
-       let mut file = std::fs::File::open("test/configs/v7/sticky_alt.cfg").unwrap();
+        let mut file = std::fs::File::open("test/configs/v7/sticky_alt.cfg").unwrap();
         let conf = Config::read(&mut file).unwrap();
         assert!(conf.flags.sticky_alt() == true);
 
@@ -422,6 +425,5 @@ mod tests {
         assert!(conf.number_of_chords == 157);
         assert!(conf.chords.len() == 157);
         assert!(conf.chords[0].buttons.f1r() == true);
-
     }
 }
