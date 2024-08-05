@@ -34,7 +34,7 @@ Options:
 - [x] Chord mappings
 - [x] v5 global config (mouse accel, mouse clicks, etc.)
 - [x] v6 global config (mouse accel, mouse clicks, etc.)
-- [ ] Ensure output has default system chords
+- [x] Ensure output has default system chords
 - [ ] Read CSV
 - [ ] Write CSV
 - [x] Read dido text format

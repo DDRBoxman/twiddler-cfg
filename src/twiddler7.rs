@@ -9,7 +9,10 @@ use modular_bitfield::{
     prelude::{B1, B4, B7},
 };
 
-use crate::{buttons::ButtonState, hid};
+use crate::{
+    buttons::{self, ButtonState},
+    hid,
+};
 
 #[bitfield]
 #[derive(BinRead, BinWrite, Debug, Copy, Clone, Default)]
@@ -79,7 +82,7 @@ pub struct Command {
     pub data: CommandData,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[binrw]
 #[br(little)]
 #[br(import { command_type: &CommandType })]
@@ -94,7 +97,7 @@ pub(crate) enum CommandData {
     None(u8, u8),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[binrw]
 pub struct HidCommand {
     pub modifier: u8,
@@ -141,7 +144,7 @@ impl BinWrite for CommandList {
 }
 
 #[bitfield]
-#[derive(BinRead, BinWrite, Debug, Copy, Clone)]
+#[derive(BinRead, BinWrite, Debug, Copy, Clone, PartialEq)]
 #[br(map = Self::from_bytes)]
 pub struct ButtonData {
     t1: bool,
@@ -164,10 +167,10 @@ pub struct ButtonData {
     f4m: bool,
     f4l: bool,
 
-    t0: bool,
     f0r: bool,
     f0m: bool,
     f0l: bool,
+    t0: bool,
 
     unknown: B4,
 }
@@ -282,45 +285,14 @@ pub(crate) fn write<W: Write + Seek>(
     mut config: Config,
     writer: &mut W,
     gen_caps: Option<i32>,
+    ensure_system_chords: bool,
 ) -> std::io::Result<()> {
-    // Generate chords for caps
-    if let Some(caps) = gen_caps {
-        let mut new_chords = vec![];
-        for chord in &config.chords {
-            if chord.command.command_type == CommandType::Keyboard
-                && chord.buttons.t0() == false
-                && chord.buttons.t1() == false
-                && chord.buttons.t2() == false
-                && chord.buttons.t3() == false
-                && chord.buttons.t4() == false
-            {
-                if let CommandData::Keyboard(hid_command) = &chord.command.data {
-                    if hid::ALPHA_HID_CODES.contains(&hid_command.key_code) {
-                        let mut chord = chord.clone();
+    if let Some(t_key) = gen_caps {
+        config.generate_caps(t_key);
+    }
 
-                        match caps {
-                            1 => chord.buttons.set_t1(true),
-                            2 => chord.buttons.set_t2(true),
-                            3 => chord.buttons.set_t3(true),
-                            4 => chord.buttons.set_t4(true),
-                            _ => {}
-                        }
-
-                        chord.command.data = CommandData::Keyboard(HidCommand {
-                            key_code: hid_command.key_code,
-                            modifier: hid_command.modifier | 0x2, //  Add left shift
-                        });
-
-                        new_chords.push(chord);
-                    }
-                }
-            }
-        }
-
-        if new_chords.len() > 0 {
-            println!("Adding {} uppercase chords", new_chords.len());
-            config.chords.append(&mut new_chords);
-        }
+    if ensure_system_chords {
+        config.ensure_system_chords();
     }
 
     // update number of chords
@@ -366,6 +338,99 @@ pub(crate) fn write<W: Write + Seek>(
     writer.write(&data)?;
 
     Ok(())
+}
+
+impl Config {
+    fn generate_caps(&mut self, t_key: i32) {
+        // Generate chords for caps
+
+        let mut new_chords = vec![];
+        for chord in &self.chords {
+            if chord.command.command_type == CommandType::Keyboard
+                && chord.buttons.t0() == false
+                && chord.buttons.t1() == false
+                && chord.buttons.t2() == false
+                && chord.buttons.t3() == false
+                && chord.buttons.t4() == false
+            {
+                if let CommandData::Keyboard(hid_command) = &chord.command.data {
+                    if hid::ALPHA_HID_CODES.contains(&hid_command.key_code) {
+                        let mut chord = chord.clone();
+
+                        match t_key {
+                            1 => chord.buttons.set_t1(true),
+                            2 => chord.buttons.set_t2(true),
+                            3 => chord.buttons.set_t3(true),
+                            4 => chord.buttons.set_t4(true),
+                            _ => {}
+                        }
+
+                        chord.command.data = CommandData::Keyboard(HidCommand {
+                            key_code: hid_command.key_code,
+                            modifier: hid_command.modifier | 0x2, //  Add left shift
+                        });
+
+                        new_chords.push(chord);
+                    }
+                }
+            }
+        }
+
+        if new_chords.len() > 0 {
+            println!("Adding {} uppercase chords", new_chords.len());
+            self.chords.append(&mut new_chords);
+        }
+    }
+
+    fn ensure_system_chords(&mut self) {
+        let system_commands = vec![
+            CommandData::System(6, 0), // Bluetooth hosts: clear
+            CommandData::System(2, 0),  // LED: Keyboard Flags
+            CommandData::System(10, 0), // LED: Battery Level
+            CommandData::System(12, 0), // Print status to keyboard
+            CommandData::System(1, 0), // Sleep now
+            CommandData::System(5, 0), // Bluetooth hosts: cycle
+            CommandData::System(4, 0), // Config cycle
+            CommandData::System(11, 0), // Nav mode: cycle
+        ];
+
+        let buttons = vec![
+            ButtonData::new()
+                .with_t1(true)
+                .with_t4(true)
+                .with_f4r(true),
+            ButtonData::new().with_f1l(true).with_t0(true),
+            ButtonData::new().with_f1m(true).with_t0(true),
+            ButtonData::new().with_f1r(true).with_t0(true),
+            ButtonData::new().with_t2(true).with_t3(true).with_t0(true),
+            ButtonData::new().with_f4r(true).with_t0(true),
+            ButtonData::new().with_f4m(true).with_t0(true),
+            ButtonData::new().with_f4l(true).with_t0(true),
+        ];
+
+        for (command, button) in system_commands.iter().zip(buttons.iter()) {
+            let mut found = false;
+            for chord in &self.chords {
+                if chord.command.command_type == CommandType::System
+                    && chord.buttons == *button
+                    && chord.command.data == *command
+                {
+                    found = true;
+                    break;
+                }
+            }
+
+            if !found {
+                self.chords.push(Chord {
+                    buttons: button.clone(),
+                    command: Command {
+                        command_type: CommandType::System,
+                        data: command.clone(),
+                    },
+                });
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -419,6 +484,15 @@ mod tests {
         assert!(conf.idle_time == 600);
         assert!(conf.mouse_sensitivity == 0x7f);
         assert!(conf.key_repeat_delay == 100);
+
+        // print system chords from more_system
+        let mut file = std::fs::File::open("test/configs/v7/more_system.cfg").unwrap();
+        let conf = Config::read(&mut file).unwrap();
+        for chord in &conf.chords {
+            if chord.command.command_type == CommandType::System {
+                println!("{:?}", chord);
+            }
+        }
 
         let mut file = std::fs::File::open("test/configs/v7/default.cfg").unwrap();
         let conf = Config::read(&mut file).unwrap();

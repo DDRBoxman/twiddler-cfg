@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate simple_error;
 
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::{Read, Seek, SeekFrom};
 
 use byteorder::ReadBytesExt;
 
@@ -13,9 +13,8 @@ mod twiddler5;
 mod twiddler6;
 mod twiddler7;
 
-use clap::{ArgAction, Parser};
+use clap::Parser;
 use clio::*;
-use serde::de::Error;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -30,6 +29,10 @@ struct Opt {
     /// 1 2 3 or 4 for the thumb key that should act as shift
     #[clap(long, short)]
     generate_caps: Option<i32>,
+
+    /// Skip adding the default system chords to the output
+    #[clap(long, short)]
+    skip_system_chords: bool,
 }
 
 fn main() {
@@ -37,7 +40,12 @@ fn main() {
 
     match load_config(&mut opt.input) {
         Ok(config) => {
-            let res = twiddler7::write(config, &mut opt.output, opt.generate_caps);
+            let res = twiddler7::write(
+                config,
+                &mut opt.output,
+                opt.generate_caps,
+                !opt.skip_system_chords,
+            );
             match res {
                 Ok(_) => {
                     println!("Done");
