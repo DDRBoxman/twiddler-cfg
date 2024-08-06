@@ -4,10 +4,61 @@ use std::{
 };
 
 use binrw::{binrw, BinRead, BinResult, BinWrite, Endian};
-use modular_bitfield::{bitfield, prelude::B4};
-use std::convert::From;
+use modular_bitfield::{
+    bitfield,
+    prelude::{B1, B4, B7},
+};
 
-use crate::{buttons::ButtonState, hid};
+use crate::{
+    buttons::{self, ButtonState},
+    hid,
+};
+
+#[bitfield]
+#[derive(BinRead, BinWrite, Debug, Copy, Clone, Default)]
+#[br(map = Self::from_bytes)]
+pub struct ConfigFlags {
+    repeat_delay_enable: bool,
+    unknown: B1, // maybe bluetooth?
+    haptic: bool,
+    direct: bool,
+    sticky_num: bool,
+    sticky_alt: bool,
+    sticky_ctrl: bool,
+    sticky_shift: bool,
+    left_mouse_pos: bool, // FOL or FOR
+    unknown2: B7,         // future expansion??
+}
+
+#[binrw]
+#[brw(little)]
+#[derive(Debug)]
+pub struct Config {
+    #[brw(pad_before = 0x4)]
+    version: u8,
+    flags: ConfigFlags,
+    #[brw(pad_before = 0x1)]
+    pub number_of_chords: u16,
+    pub idle_time: u16,
+    pub mouse_sensitivity: u8,
+    pub key_repeat_delay: u8,
+
+    #[brw(seek_before = SeekFrom::Start(0x80))]
+    #[br(count = number_of_chords)]
+    pub chords: Vec<Chord>,
+
+    #[br(count = chords.iter().filter(|c| c.command.command_type == CommandType::ListOfCommands).count())]
+    pub command_lists: Vec<CommandList>,
+}
+
+#[derive(Debug, Clone)]
+#[binrw]
+#[brw(little)]
+pub struct Chord {
+    #[brw(pad_after = 1)]
+    pub buttons: ButtonData,
+    pub command: Command,
+}
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[binrw]
@@ -21,91 +72,32 @@ pub enum CommandType {
     ListOfCommands = 7,
 }
 
-#[bitfield]
-#[derive(BinRead, BinWrite, Debug, Copy, Clone, Default)]
-#[br(map = Self::from_bytes)]
-pub struct ConfigFlags {
-    repeat_delay_enable: bool,
-    haptic: bool,
-    left_mouse_pos: bool, // FOL or FOR
-    direct: bool,
-    sticky_num: bool,
-    sticky_alt: bool,
-    sticky_ctrl: bool,
-    sticky_shift: bool,
-}
-
-#[binrw]
-#[brw(little)]
-#[derive(Debug)]
-pub struct Config {
-    #[brw(pad_before = 0x4)]
-    version: u8,
-    flags: ConfigFlags,
-    pub number_of_chords: u16,
-    #[brw(pad_before = 0x4)]
-    pub idle_time: u16,
-    pub mouse_sensitivity: u8,
-    pub key_repeat_delay: u8,
-    #[brw(seek_before = SeekFrom::Start(0x28))]
-    #[br(count = number_of_chords)]
-    pub chords: Vec<Chord>,
-
-    #[br(count = chords.iter().filter(|c| c.command.command_type == CommandType::ListOfCommands).count())]
-    pub command_lists: Vec<CommandList>,
-}
-
-impl Config {
-    pub fn new() -> Self {
-        Self {
-            version: 6,
-            flags: ConfigFlags::default()
-                .with_haptic(true)
-                .with_repeat_delay_enable(true),
-            number_of_chords: 0,
-            chords: vec![],
-            command_lists: vec![],
-            idle_time: 600,
-            mouse_sensitivity: 0x7f,
-            key_repeat_delay: 127,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-#[binrw]
-#[brw(little)]
-pub struct Chord {
-    #[brw(pad_after = 1)]
-    pub buttons: ButtonData,
-    pub command: Command,
-}
-
 #[derive(Debug, Clone)]
 #[binrw]
 #[brw(little)]
 pub struct Command {
     pub command_type: CommandType,
     #[br(args { command_type: &command_type })]
+    #[brw(pad_after = 1)]
     pub data: CommandData,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[binrw]
 #[br(little)]
 #[br(import { command_type: &CommandType })]
 pub(crate) enum CommandData {
     #[br(assert(*command_type == CommandType::ListOfCommands))]
-    ListOfCommands(u8, u16),
+    ListOfCommands(u16),
     #[br(assert(*command_type == CommandType::Keyboard))]
-    Keyboard(HidCommand, u8),
+    Keyboard(HidCommand),
     #[br(assert(*command_type == CommandType::System))]
-    System(u8, u8, u8),
+    System(u8, u8),
     #[br(assert(*command_type == CommandType::None))]
-    None(u8, u8, u8),
+    None(u8, u8),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[binrw]
 pub struct HidCommand {
     pub modifier: u8,
@@ -152,7 +144,7 @@ impl BinWrite for CommandList {
 }
 
 #[bitfield]
-#[derive(BinRead, BinWrite, Debug, Copy, Clone)]
+#[derive(BinRead, BinWrite, Debug, Copy, Clone, PartialEq)]
 #[br(map = Self::from_bytes)]
 pub struct ButtonData {
     t1: bool,
@@ -175,10 +167,10 @@ pub struct ButtonData {
     f4m: bool,
     f4l: bool,
 
-    t0: bool,
     f0r: bool,
     f0m: bool,
     f0l: bool,
+    t0: bool,
 
     unknown: B4,
 }
@@ -261,6 +253,23 @@ impl Into<ButtonState> for ButtonData {
     }
 }
 
+impl Config {
+    pub fn new() -> Self {
+        Self {
+            version: 7,
+            flags: ConfigFlags::default()
+                .with_haptic(true)
+                .with_repeat_delay_enable(true),
+            number_of_chords: 0,
+            idle_time: 600,
+            mouse_sensitivity: 0x7f,
+            key_repeat_delay: 100,
+            chords: vec![],
+            command_lists: vec![],
+        }
+    }
+}
+
 pub(crate) fn parse<R: Read + Seek>(reader: &mut R) -> Result<Config, Box<dyn std::error::Error>> {
     let res = Config::read(reader);
     match res {
@@ -276,48 +285,14 @@ pub(crate) fn write<W: Write + Seek>(
     mut config: Config,
     writer: &mut W,
     gen_caps: Option<i32>,
+    ensure_system_chords: bool,
 ) -> std::io::Result<()> {
-    // Generate chords for caps
-    if let Some(caps) = gen_caps {
-        let mut new_chords = vec![];
-        for chord in &config.chords {
-            if chord.command.command_type == CommandType::Keyboard
-                && chord.buttons.t0() == false
-                && chord.buttons.t1() == false
-                && chord.buttons.t2() == false
-                && chord.buttons.t3() == false
-                && chord.buttons.t4() == false
-            {
-                if let CommandData::Keyboard(hid_command, _) = &chord.command.data {
-                    if hid::ALPHA_HID_CODES.contains(&hid_command.key_code) {
-                        let mut chord = chord.clone();
+    if let Some(t_key) = gen_caps {
+        config.generate_caps(t_key);
+    }
 
-                        match caps {
-                            1 => chord.buttons.set_t1(true),
-                            2 => chord.buttons.set_t2(true),
-                            3 => chord.buttons.set_t3(true),
-                            4 => chord.buttons.set_t4(true),
-                            _ => {}
-                        }
-
-                        chord.command.data = CommandData::Keyboard(
-                            HidCommand {
-                                key_code: hid_command.key_code,
-                                modifier: hid_command.modifier | 0x2, //  Add left shift
-                            },
-                            0,
-                        );
-
-                        new_chords.push(chord);
-                    }
-                }
-            }
-        }
-
-        if new_chords.len() > 0 {
-            println!("Adding {} uppercase chords", new_chords.len());
-            config.chords.append(&mut new_chords);
-        }
+    if ensure_system_chords {
+        config.ensure_system_chords();
     }
 
     // update number of chords
@@ -340,7 +315,7 @@ pub(crate) fn write<W: Write + Seek>(
     for i in 0..config.chords.len() {
         if config.chords[i].command.command_type == CommandType::ListOfCommands {
             let size = config.command_lists[j].0.len() * 4;
-            config.chords[i].command.data = CommandData::ListOfCommands(0, offset);
+            config.chords[i].command.data = CommandData::ListOfCommands(offset);
             offset += size as u16;
             offset += 4; // 0u32
             j += 1;
@@ -358,11 +333,104 @@ pub(crate) fn write<W: Write + Seek>(
     }
 
     // TODO: Figure out more config format details
-    writer.seek(SeekFrom::Start(0x13));
-    let data = hex::decode("03000102030405060708090A0C0D0F111416181A1D").unwrap();
+    writer.seek(SeekFrom::Start(0x44));
+    let data = hex::decode("0300000001000000020000000A0B0909000000000000000000000000000102030405060708090A0C0D0F111416181A1D808080808080808080808080").unwrap();
     writer.write(&data)?;
 
     Ok(())
+}
+
+impl Config {
+    fn generate_caps(&mut self, t_key: i32) {
+        // Generate chords for caps
+
+        let mut new_chords = vec![];
+        for chord in &self.chords {
+            if chord.command.command_type == CommandType::Keyboard
+                && chord.buttons.t0() == false
+                && chord.buttons.t1() == false
+                && chord.buttons.t2() == false
+                && chord.buttons.t3() == false
+                && chord.buttons.t4() == false
+            {
+                if let CommandData::Keyboard(hid_command) = &chord.command.data {
+                    if hid::ALPHA_HID_CODES.contains(&hid_command.key_code) {
+                        let mut chord = chord.clone();
+
+                        match t_key {
+                            1 => chord.buttons.set_t1(true),
+                            2 => chord.buttons.set_t2(true),
+                            3 => chord.buttons.set_t3(true),
+                            4 => chord.buttons.set_t4(true),
+                            _ => {}
+                        }
+
+                        chord.command.data = CommandData::Keyboard(HidCommand {
+                            key_code: hid_command.key_code,
+                            modifier: hid_command.modifier | 0x2, //  Add left shift
+                        });
+
+                        new_chords.push(chord);
+                    }
+                }
+            }
+        }
+
+        if new_chords.len() > 0 {
+            println!("Adding {} uppercase chords", new_chords.len());
+            self.chords.append(&mut new_chords);
+        }
+    }
+
+    fn ensure_system_chords(&mut self) {
+        let system_commands = vec![
+            CommandData::System(6, 0), // Bluetooth hosts: clear
+            CommandData::System(2, 0),  // LED: Keyboard Flags
+            CommandData::System(10, 0), // LED: Battery Level
+            CommandData::System(12, 0), // Print status to keyboard
+            CommandData::System(1, 0), // Sleep now
+            CommandData::System(5, 0), // Bluetooth hosts: cycle
+            CommandData::System(4, 0), // Config cycle
+            CommandData::System(11, 0), // Nav mode: cycle
+        ];
+
+        let buttons = vec![
+            ButtonData::new()
+                .with_t1(true)
+                .with_t4(true)
+                .with_f4r(true),
+            ButtonData::new().with_f1l(true).with_t0(true),
+            ButtonData::new().with_f1m(true).with_t0(true),
+            ButtonData::new().with_f1r(true).with_t0(true),
+            ButtonData::new().with_t2(true).with_t3(true).with_t0(true),
+            ButtonData::new().with_f4r(true).with_t0(true),
+            ButtonData::new().with_f4m(true).with_t0(true),
+            ButtonData::new().with_f4l(true).with_t0(true),
+        ];
+
+        for (command, button) in system_commands.iter().zip(buttons.iter()) {
+            let mut found = false;
+            for chord in &self.chords {
+                if chord.command.command_type == CommandType::System
+                    && chord.buttons == *button
+                    && chord.command.data == *command
+                {
+                    found = true;
+                    break;
+                }
+            }
+
+            if !found {
+                self.chords.push(Chord {
+                    buttons: button.clone(),
+                    command: Command {
+                        command_type: CommandType::System,
+                        data: command.clone(),
+                    },
+                });
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -371,35 +439,39 @@ mod tests {
 
     #[test]
     fn test_header() {
-        let mut file = std::fs::File::open("test/configs/v6/haptic_off.cfg").unwrap();
-        let conf = Config::read(&mut file).unwrap();
+        let mut file = std::fs::File::open("test/configs/v7/haptic_off.cfg").unwrap();
+        let conf: Config = Config::read(&mut file).unwrap();
         assert!(conf.flags.haptic() == false);
 
-        let mut file = std::fs::File::open("test/configs/v6/sticky_alt.cfg").unwrap();
+        let mut file = std::fs::File::open("test/configs/v7/direct.cfg").unwrap();
+        let conf = Config::read(&mut file).unwrap();
+        assert!(conf.flags.direct() == true);
+
+        let mut file = std::fs::File::open("test/configs/v7/sticky_alt.cfg").unwrap();
         let conf = Config::read(&mut file).unwrap();
         assert!(conf.flags.sticky_alt() == true);
 
-        let mut file = std::fs::File::open("test/configs/v6/sticky_num.cfg").unwrap();
+        let mut file = std::fs::File::open("test/configs/v7/sticky_num.cfg").unwrap();
         let conf = Config::read(&mut file).unwrap();
         assert!(conf.flags.sticky_num() == true);
 
-        let mut file = std::fs::File::open("test/configs/v6/sticky_shift.cfg").unwrap();
+        let mut file = std::fs::File::open("test/configs/v7/sticky_shift.cfg").unwrap();
         let conf = Config::read(&mut file).unwrap();
         assert!(conf.flags.sticky_shift() == true);
 
-        let mut file = std::fs::File::open("test/configs/v6/sticky_ctrl.cfg").unwrap();
+        let mut file = std::fs::File::open("test/configs/v7/sticky_ctrl.cfg").unwrap();
         let conf = Config::read(&mut file).unwrap();
         assert!(conf.flags.sticky_ctrl() == true);
 
-        let mut file = std::fs::File::open("test/configs/v6/key_repeat_delay_off.cfg").unwrap();
+        let mut file = std::fs::File::open("test/configs/v7/key_repeat_delay_off.cfg").unwrap();
         let conf = Config::read(&mut file).unwrap();
         assert!(conf.flags.repeat_delay_enable() == false);
 
-        let mut file = std::fs::File::open("test/configs/v6/left_mouse_pos.cfg").unwrap();
+        let mut file = std::fs::File::open("test/configs/v7/left_mouse_pos.cfg").unwrap();
         let conf = Config::read(&mut file).unwrap();
         assert!(conf.flags.left_mouse_pos() == true);
 
-        let mut file = std::fs::File::open("test/configs/v6/empty.cfg").unwrap();
+        let mut file = std::fs::File::open("test/configs/v7/empty.cfg").unwrap();
         let conf = Config::read(&mut file).unwrap();
         assert!(conf.flags.left_mouse_pos() == false);
         assert!(conf.flags.repeat_delay_enable() == true);
@@ -409,5 +481,23 @@ mod tests {
         assert!(conf.flags.sticky_shift() == false);
         assert!(conf.flags.sticky_ctrl() == false);
         assert!(conf.flags.repeat_delay_enable() == true);
+        assert!(conf.idle_time == 600);
+        assert!(conf.mouse_sensitivity == 0x7f);
+        assert!(conf.key_repeat_delay == 100);
+
+        // print system chords from more_system
+        let mut file = std::fs::File::open("test/configs/v7/more_system.cfg").unwrap();
+        let conf = Config::read(&mut file).unwrap();
+        for chord in &conf.chords {
+            if chord.command.command_type == CommandType::System {
+                println!("{:?}", chord);
+            }
+        }
+
+        let mut file = std::fs::File::open("test/configs/v7/default.cfg").unwrap();
+        let conf = Config::read(&mut file).unwrap();
+        assert!(conf.number_of_chords == 157);
+        assert!(conf.chords.len() == 157);
+        assert!(conf.chords[0].buttons.f1r() == true);
     }
 }

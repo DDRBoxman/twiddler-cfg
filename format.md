@@ -1,11 +1,31 @@
-Format Wiki (v6 not released yet)
+### Format Wiki (v6 not released yet)
 https://www.mytwiddler.com/doc/doku.php?id=twiddler_config_format
 
 
-v5 Format
+### v5 Format
 https://www.mytwiddler.com/doc/static/twiddler3_config_format_v5_rev3.pdf
 
-v6 Format reversing
+### v7 Format
+
+00-03: 0
+0004: 7 // version
+05-06: config flags // bitfield
+    repeat delay enable
+    bluetooth???
+    haptic
+    direct
+    sticky_num
+    sticky_alt
+    sticky_ctrl
+    sticky_shift
+    left_mouse_pos // FOL or FOR
+0008: num chords
+0A-0B: idle time
+0C: mouse sensitivity
+0D: key repeat delay 
+0080: Chords
+
+### v6 Format reversing
 
 00-03: 0
 0004: 6 // version
@@ -18,8 +38,8 @@ v6 Format reversing
     sticky_alt
     sticky_ctrl
     sticky_shift
-0006: number of chords  (3C 00) 1 minute (10 0E) 10 minute
-08-09: idle time
+0006: number of chords
+08-09: idle time (3C 00) 1 minute (10 0E) 10 minute
 0010: mouse sensitivity 0x01 -> 254, 0xFE -> 1
 0011: key repeat delay 0x01-0xFA (10ms - 2500ms)
 0030: Chords

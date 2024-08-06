@@ -2,16 +2,16 @@
 
 Tool for converting and massaging twiddler configs!
 
-Convert a v5 to v6 file and make sure that shift works
+Convert a v5 to v7 file and make sure that shift works
 ```
-./twiddler_cfg --generate-caps 4 ./configs/backspice2_v5.cfg ./backspicev2_v6.cfg
+./twiddler_cfg --generate-caps 4 ./configs/backspice2_v5.cfg ./backspicev2_v7.cfg
 ```
 
 Help
 ```
 ./twiddler_cfg --help
 
-Convert Twiddler v5 configs to Twiddler v6 configs
+Convert Twiddler v5 configs to Twiddler v7 configs
 
 Usage: twiddler_cfg [OPTIONS] <INPUT> <OUTPUT>
 
@@ -29,10 +29,12 @@ Options:
 - [x] Read v5 configs
 - [x] Read v6 configs
 - [x] Write v6 configs
+- [x] Read v7 configs
+- [x] Write v7 configs
 - [x] Chord mappings
 - [x] v5 global config (mouse accel, mouse clicks, etc.)
 - [x] v6 global config (mouse accel, mouse clicks, etc.)
-- [ ] Ensure output has default system chords
+- [x] Ensure output has default system chords
 - [ ] Read CSV
 - [ ] Write CSV
 - [x] Read dido text format
@@ -48,7 +50,7 @@ cargo run -- ./configs/backspice2_v5.cfg ./test.cfg
 
 Coolhand
 ```
-cargo run -- --generate-caps 4 ./configs/CoolHand.txt ./coolhand_v6_caps.cfg
+cargo run -- --generate-caps 4 ./configs/CoolHand.txt ./coolhand_v7_caps.cfg
 ```
 
 Run tests logging output
