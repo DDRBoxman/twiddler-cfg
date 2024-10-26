@@ -51,12 +51,12 @@ fn main() {
                     println!("Done");
                 }
                 Err(e) => {
-                    println!("Failed to write output config{:?}", e);
+                    println!("Failed to write output config: {:?}", e);
                 }
             }
         }
         Err(e) => {
-            println!("Failed to load input config{:?}", e);
+            println!("Failed to load input config: {:?}", e);
         }
     }
 }
@@ -64,31 +64,31 @@ fn main() {
 fn load_config<R: Read + Seek>(
     reader: &mut R,
 ) -> std::result::Result<twiddler7::Config, Box<dyn std::error::Error>> {
-    reader.seek(SeekFrom::Start(0));
-    if reader.read_u8().unwrap() == 0x05 {
+    reader.seek(SeekFrom::Start(0))?;
+    if reader.read_u8()? == 0x05 {
         println!("Reading input as Twiddler 5 config");
-        reader.seek(SeekFrom::Start(0));
+        reader.seek(SeekFrom::Start(0))?;
         let config = twiddler5::parse(reader)?;
         return Ok(twiddler5_to_twiddler7(&config));
     }
 
-    reader.seek(SeekFrom::Start(4));
-    if reader.read_u8().unwrap() == 0x06 {
+    reader.seek(SeekFrom::Start(4))?;
+    if reader.read_u8()? == 0x06 {
         println!("Twiddler 6 config detected");
         bail!("Twiddler 6 config not supported yet");
     }
 
-    reader.seek(SeekFrom::Start(4));
-    if reader.read_u8().unwrap() == 0x07 {
+    reader.seek(SeekFrom::Start(4))?;
+    if reader.read_u8()? == 0x07 {
         println!("Twiddler 7 config detected");
         println!("Running through twiddler 7 parser to ensure it's valid");
-        reader.seek(SeekFrom::Start(0));
+        reader.seek(SeekFrom::Start(0))?;
         let conf = twiddler7::parse(reader)?;
         return Ok(conf);
     }
 
-    reader.seek(SeekFrom::Start(0));
-    if reader.read_u8().unwrap() == '#' as u8 {
+    reader.seek(SeekFrom::Start(0))?;
+    if reader.read_u8()? == '#' as u8 {
         println!("Starts with a #, assuming Dido config");
         let res = dido::parse(reader);
         match res {
@@ -97,15 +97,34 @@ fn load_config<R: Read + Seek>(
                 return Ok(config7);
             }
             Err(e) => {
-                bail!("Failed parsing dido config {:?}", e);
+                bail!("Failed parsing dido config: {:?}", e);
             }
         }
     }
+    // CSV implementation configured according to the structure
+    println!("Reading input as CSV config");
+    reader.seek(SeekFrom::Start(0))?;
+    let chords = csv::parse(reader)?;
+    println!("Parsed CSV data successfully!");
 
-    println!("Reading input as csv config");
-    reader.seek(SeekFrom::Start(0));
-    let res = csv::parse(reader);
-    bail!("CSV conversion implementation incomplete");
+    let mut config7 = twiddler7::Config::new();
+    for chord in chords {
+        let button_state: buttons::ButtonState = chord.clone().into();
+        let hid_pairs = chord.get_hid_pairs();
+        let command = twiddler7::Command {
+            command_type: twiddler7::CommandType::Keyboard,
+            data: twiddler7::CommandData::Keyboard(twiddler7::HidCommand {
+                modifier: hid_pairs.first().map_or(0, |p| p.0),
+                key_code: hid_pairs.first().map_or(0, |p| p.1),
+            }),
+        };
+        config7.chords.push(twiddler7::Chord {
+            buttons: button_state.into(),
+            command,
+        });
+    }
+
+    Ok(config7)
 }
 
 fn dido_to_twiddler7(config: dido::Config) -> twiddler7::Config {

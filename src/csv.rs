@@ -1,6 +1,5 @@
 use std::{
-    io::{Read, Seek},
-    vec,
+    io::{Read, Seek, Write},
 };
 
 use crate::{
@@ -8,7 +7,7 @@ use crate::{
     hid,
 };
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, serde::Serialize,Clone)]
 pub struct Chord {
     #[serde(alias = "Thumbs")]
     thumbs: Option<String>,
@@ -21,7 +20,6 @@ pub struct Chord {
 
 pub fn parse<R: Read + Seek>(reader: &mut R) -> Result<Vec<Chord>, Box<dyn std::error::Error>> {
     let mut rdr = csv::Reader::from_reader(reader);
-
     let result: Result<Vec<Chord>, csv::Error> = rdr.deserialize().collect();
     match result {
         Ok(chords) => Ok(chords),
@@ -29,10 +27,19 @@ pub fn parse<R: Read + Seek>(reader: &mut R) -> Result<Vec<Chord>, Box<dyn std::
     }
 }
 
+pub fn export<W: Write>(writer: &mut W, chords: &[Chord]) -> Result<(), Box<dyn std::error::Error>> {
+    let mut wtr = csv::Writer::from_writer(writer);
+    for chord in chords {
+        wtr.serialize(chord)?;
+    }
+    wtr.flush()?;
+    Ok(())
+}
+
 impl Into<ButtonState> for Chord {
     fn into(self) -> ButtonState {
-        let thumbs = self.thumbs.unwrap();
-        let fingers = self.fingers.unwrap();
+        let thumbs = self.thumbs.unwrap_or_default();
+        let fingers = self.fingers.unwrap_or_default();
         buttons::parse_notation(thumbs, fingers)
     }
 }
@@ -47,7 +54,6 @@ impl Chord {
         }
 
         let mut hid_pairs: Vec<(u8, u8)> = Vec::new();
-
         let mut current_modifiers: u8 = 0;
 
         let mut reading_tag = false;
@@ -61,16 +67,12 @@ impl Chord {
                     tag_start = i;
                 }
                 ('<', true) => {
-                    // Unexpected '<' in tag treat it as the user putting the last '<' as a key
-                    // todo: this needs shift key to type properly
-                    // update tag start to this position too
                     tag_start = i;
                     hid_pairs.push((current_modifiers, 0x64));
                 }
                 ('>', true) => {
                     reading_tag = false;
                     let tag_contents = &self.output[tag_start + 1..i];
-                    println!("{}", tag_contents);
 
                     let modifier = match tag_contents {
                         "L-Ctrl" => 0x01,
@@ -91,8 +93,6 @@ impl Chord {
                     }
                 }
                 ('>', false) => {
-                    // Unexpected '>' in tag treat it as the user putting '>' as a key
-                    // todo: this needs shift key to type properly
                     hid_pairs.push((current_modifiers, 0x64));
                 }
                 ('/', true) => {
@@ -114,17 +114,44 @@ impl Chord {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Cursor;
 
     #[test]
-    fn it_works() {
-        /*  parse_output("<L-Ctrl></L-Ctrl>");
+    fn test_parse() {
+        let data = "Thumbs,Fingers,Keyboard Output\n<Thumb1>,<Thumb2>,<L-Ctrl>F";
+        let mut cursor = Cursor::new(data);
+        let chords = parse(&mut cursor).unwrap();
 
-        parse_output("<L-Ctrl>a</L-Ctrl>");
 
-        parse_output("<L-Ctrl><HIDCode 0x04></L-Ctrl>");
 
-        parse_output("<L-Ctrl>></L-Ctrl>");
+        assert_eq!(chords.len(), 1);
+        assert_eq!(chords[0].output, "<L-Ctrl>F");
+    }
 
-        parse_output("<");*/
+    #[test]
+    fn test_export() {
+        let chords = vec![
+            Chord {
+                thumbs: Some("T1".to_string()),
+                fingers: Some("F1".to_string()),
+                output: "<L-Ctrl>F".to_string(),
+            },
+            Chord {
+                thumbs: Some("T2".to_string()),
+                fingers: Some("F2".to_string()),
+                output: "<R-Shift>A".to_string(),
+            },
+        ];
+
+        let mut buffer = Vec::new();
+        export(&mut buffer, &chords).unwrap();
+        let result = String::from_utf8(buffer).unwrap();
+
+
+
+        assert!(result.contains("T1,F1,<L-Ctrl>F"));
+        assert!(result.contains("T2,F2,<R-Shift>A"));
     }
 }
+
+

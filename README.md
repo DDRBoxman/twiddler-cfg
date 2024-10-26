@@ -35,8 +35,8 @@ Options:
 - [x] v5 global config (mouse accel, mouse clicks, etc.)
 - [x] v6 global config (mouse accel, mouse clicks, etc.)
 - [x] Ensure output has default system chords
-- [ ] Read CSV
-- [ ] Write CSV
+- [x] Read CSV
+- [x] Write CSV
 - [x] Read dido text format
 - [ ] Write dido format
 - [x] Ability to autogenerate shift chords for uppercase letters
